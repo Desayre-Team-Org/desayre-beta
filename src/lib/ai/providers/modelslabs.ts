@@ -19,6 +19,13 @@ export class ModelsLabsProvider extends BaseProvider {
     try {
       const apiKey = this.getApiKey(config.headers);
       
+      console.log('ModelsLabs generate called:', {
+        endpoint: config.endpoint,
+        model: config.model,
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey?.length,
+      });
+      
       const payload = {
         key: apiKey,
         prompt: prompt.enhanced,
@@ -37,6 +44,8 @@ export class ModelsLabsProvider extends BaseProvider {
         ...options,
       };
 
+      console.log('Sending request to ModelsLabs:', config.endpoint);
+      
       const response = await this.fetchWithTimeout(
         config.endpoint,
         {
@@ -48,13 +57,18 @@ export class ModelsLabsProvider extends BaseProvider {
         },
         120000
       );
+      
+      console.log('ModelsLabs response status:', response.status);
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`ModelsLabs API error: ${error}`);
+        const errorText = await response.text();
+        console.error('ModelsLabs API error:', response.status, errorText);
+        throw new Error(`ModelsLabs API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
+      
+      console.log('ModelsLabs response data:', JSON.stringify(data).slice(0, 500));
 
       // Handle different response formats
       let imageUrl: string | undefined;
