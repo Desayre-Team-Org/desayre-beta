@@ -12,7 +12,7 @@ import { storage } from '@/lib/storage';
 
 const requestSchema = z.object({
   prompt: z.string().min(1).max(500),
-  resolution: z.enum(['512x512', '768x768', '1024x1024', '1024x576', '576x1024']).optional(),
+  resolution: z.enum(['1:1', '9:16', '2:3', '3:4', '4:5', '5:4', '4:3', '3:2', '16:9', '21:9']).optional(),
   priority: z.enum(['speed', 'quality', 'cost']).optional(),
   async: z.boolean().optional().default(false),
 });
