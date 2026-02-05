@@ -20,9 +20,9 @@ interface ModelDefinition {
 }
 
 const MODEL_REGISTRY: Record<string, ModelDefinition> = {
-  'realistic-vision': {
-    id: 'realistic-vision-v51',
-    name: 'Realistic Vision',
+  'nano-banana-pro': {
+    id: 'nano-banana-pro',
+    name: 'Nano Banana Pro',
     provider: 'modelslabs',
     type: ['image'],
     resolutions: ['512x512', '768x768', '1024x1024', '1024x576', '576x1024'],
@@ -71,7 +71,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
 };
 
 const PROVIDER_ENDPOINTS: Record<ModelProvider, string> = {
-  modelslabs: 'https://modelslab.com/api/v6',
+  modelslabs: 'https://modelslab.com/api/v7',
   xai: 'https://api.x.ai/v1',
 };
 
@@ -154,9 +154,9 @@ export class AIRouter {
     if (model.provider === 'modelslabs') {
       switch (type) {
         case 'image':
-          return `${baseUrl}/images/text2img`;
+          return `${baseUrl}/images/text-to-image`;
         case 'edit':
-          return `${baseUrl}/images/img2img`;
+          return `${baseUrl}/images/image-to-image`;
         default:
           throw new Error(`ModelsLabs does not support type: ${type}`);
       }
