@@ -117,7 +117,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload to storage
+    console.log('Uploading image to storage from URL:', result.url);
     const upload = await storage.uploadFromUrl(result.url, 'images');
+    console.log('Upload result:', { key: upload.key, publicUrl: upload.publicUrl });
 
     // Update generation record
     await db

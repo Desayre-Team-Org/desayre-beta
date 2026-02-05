@@ -60,11 +60,14 @@ export default function StudioPage() {
       });
 
       const data = await response.json();
+      
+      console.log('Generation response:', data);
 
       clearInterval(progressInterval);
       setProgress(100);
 
       if (data.success) {
+        console.log('Setting result URL:', data.data.url);
         setResult({ url: data.data.url });
         setRefreshTrigger((t) => t + 1);
       } else {
