@@ -70,6 +70,11 @@ export class ModelsLabsProvider extends BaseProvider {
       
       console.log('ModelsLabs response data:', JSON.stringify(data).slice(0, 500));
 
+      // Check for API error response
+      if (data.status === 'error') {
+        throw new Error(`ModelsLabs API error: ${data.message || 'Unknown error'}`);
+      }
+
       // Handle different response formats
       let imageUrl: string | undefined;
       
@@ -82,7 +87,8 @@ export class ModelsLabsProvider extends BaseProvider {
       }
 
       if (!imageUrl) {
-        throw new Error('No image URL in response');
+        console.error('No image URL in response. Full response:', JSON.stringify(data));
+        throw new Error(`No image URL in response. Status: ${data.status}`);
       }
 
       return {
