@@ -15,7 +15,7 @@ const requestSchema = z.object({
   prompt: z.string().min(1).max(500),
   instructions: z.string().max(500).optional(),
   resolution: z.enum(['512x512', '768x768', '1024x1024']).optional(),
-  async: z.boolean().optional().default(true),
+  async: z.boolean().optional().default(false),
 });
 
 export async function POST(request: NextRequest) {
