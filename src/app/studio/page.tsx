@@ -171,7 +171,7 @@ export default function StudioPage() {
                 {activeTab === 'edit' && (
                   <div className="sm:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                      Input Image
+                      Upload Image
                     </label>
                     <ImageUpload
                       value={inputImageUrl}
@@ -184,6 +184,9 @@ export default function StudioPage() {
                         setInputImageFile(null);
                       }}
                     />
+                    <p className="mt-1.5 text-xs text-text-secondary">
+                      Drag & drop or click to upload PNG, JPG, WEBP
+                    </p>
                   </div>
                 )}
                 {activeTab === 'video' && (
