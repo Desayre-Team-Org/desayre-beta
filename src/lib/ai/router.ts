@@ -179,7 +179,7 @@ export class AIRouter {
     const apiKey = this.apiKeys[provider];
     
     if (!apiKey) {
-      throw new Error(`API key not configured for provider: ${provider}`);
+      throw new Error(`API key not configured for provider: ${provider}. Please set ${provider === 'modelslabs' ? 'MODELS_LABS_API_KEY' : 'XAI_API_KEY'} environment variable.`);
     }
 
     switch (provider) {
