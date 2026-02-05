@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
         metadata: result.metadata,
         completedAt: new Date(),
       })
-      .where(sql => sql.eq(generations.id, generation.id));
+      .where(eq(generations.id, generation.id));
 
     return NextResponse.json({
       success: true,
