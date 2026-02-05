@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     // Route to model
     const modelConfig = aiRouter.route({
       type: 'edit',
-      resolution,
+      resolution: resolution || undefined,
       priority: 'quality',
     });
 
