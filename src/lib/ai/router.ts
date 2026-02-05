@@ -33,7 +33,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     parameters: {
       num_inference_steps: 30,
       guidance_scale: 7.5,
-      scheduler: 'DPMSolverMultistep',
+      scheduler: 'UniPCMultistepScheduler',
     },
   },
   'grok-imagine-edit': {
