@@ -84,8 +84,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Synchronous generation
+    console.log('Generating image with config:', {
+      endpoint: modelConfig.endpoint,
+      model: modelConfig.model,
+      provider: modelConfig.provider,
+      hasApiKey: !!modelConfig.headers?.Authorization,
+    });
+    
     const result = await generateImage(modelConfig, enhancedPrompt, {
       negativePrompt: encoder.getNegativePrompt(),
+    });
+
+    console.log('Generation result:', {
+      success: result.success,
+      hasUrl: !!result.url,
+      error: result.error,
     });
 
     if (!result.success || !result.url) {

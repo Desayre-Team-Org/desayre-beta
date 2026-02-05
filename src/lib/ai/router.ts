@@ -71,7 +71,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
 };
 
 const PROVIDER_ENDPOINTS: Record<ModelProvider, string> = {
-  modelslabs: 'https://api.modelslabs.com/v1',
+  modelslabs: 'https://modelslab.com/api/v6',
   xai: 'https://api.x.ai/v1',
 };
 
@@ -144,6 +144,19 @@ export class AIRouter {
   private buildEndpoint(model: ModelDefinition, type: GenerationType): string {
     const baseUrl = PROVIDER_ENDPOINTS[model.provider];
     
+    // ModelsLabs uses different endpoints than OpenAI format
+    if (model.provider === 'modelslabs') {
+      switch (type) {
+        case 'image':
+          return `${baseUrl}/images/text2img`;
+        case 'edit':
+          return `${baseUrl}/images/img2img`;
+        default:
+          throw new Error(`ModelsLabs does not support type: ${type}`);
+      }
+    }
+    
+    // xAI uses OpenAI-compatible format
     switch (type) {
       case 'image':
         return `${baseUrl}/images/generations`;

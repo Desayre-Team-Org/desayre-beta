@@ -5,13 +5,22 @@ export class ModelsLabsProvider extends BaseProvider {
   readonly name = 'ModelsLabs';
   readonly provider = 'modelslabs';
 
+  // Extract API key from Authorization header
+  private getApiKey(headers: Record<string, string>): string {
+    const auth = headers['Authorization'] || '';
+    return auth.replace('Bearer ', '');
+  }
+
   async generate(
     config: ModelConfig,
     prompt: EnhancedPrompt,
     options?: Record<string, unknown>
   ): Promise<GenerationResult> {
     try {
+      const apiKey = this.getApiKey(config.headers);
+      
       const payload = {
+        key: apiKey,
         prompt: prompt.enhanced,
         negative_prompt: options?.negativePrompt || '',
         width: config.parameters.width || 1024,
@@ -20,6 +29,11 @@ export class ModelsLabsProvider extends BaseProvider {
         guidance_scale: config.parameters.guidance_scale || 7.5,
         scheduler: config.parameters.scheduler || 'DPMSolverMultistep',
         model_id: config.model,
+        samples: '1',
+        safety_checker: 'no',
+        enhance_prompt: 'yes',
+        tomesd: 'yes',
+        use_karras_sigmas: 'yes',
         ...options,
       };
 
@@ -27,7 +41,9 @@ export class ModelsLabsProvider extends BaseProvider {
         config.endpoint,
         {
           method: 'POST',
-          headers: config.headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(payload),
         },
         120000
@@ -76,22 +92,28 @@ export class ModelsLabsProvider extends BaseProvider {
     instructions?: string
   ): Promise<GenerationResult> {
     try {
+      const apiKey = this.getApiKey(config.headers);
+      
       const payload = {
-        image_url: imageUrl,
+        key: apiKey,
+        init_image: imageUrl,
         prompt: prompt.enhanced,
-        edit_instructions: instructions || prompt.original,
         negative_prompt: '',
         strength: config.parameters.strength || 0.75,
         num_inference_steps: config.parameters.num_inference_steps || 35,
         guidance_scale: config.parameters.guidance_scale || 8.0,
         model_id: config.model,
+        samples: '1',
+        safety_checker: 'no',
       };
 
       const response = await this.fetchWithTimeout(
         config.endpoint,
         {
           method: 'POST',
-          headers: config.headers,
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(payload),
         },
         120000
