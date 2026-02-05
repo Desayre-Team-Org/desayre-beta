@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generationQueue } from '@/lib/queue';
 import { db, generations, sql } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { generateImage, editImage, generateVideo } from '@/lib/ai/providers';
 import { storage } from '@/lib/storage';
-// sql imported from @/lib/db
+
 
 // This route processes queued generation jobs
 // It should be called by a cron job or queue worker
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
         await db
           .update(generations)
           .set({ status: 'processing' })
-          .where(sql => sql.eq(generations.id, job.payload.generationId));
+          .where(eq(generations.id, job.payload.generationId));
 
         let result;
 
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
             metadata: result.metadata,
             completedAt: new Date(),
           })
-          .where(sql => sql.eq(generations.id, job.payload.generationId));
+          .where(eq(generations.id, job.payload.generationId));
 
         await generationQueue.complete(job.id);
 
@@ -130,7 +131,7 @@ export async function POST(request: NextRequest) {
             status: 'failed',
             error: errorMessage,
           })
-          .where(sql => sql.eq(generations.id, job.payload.generationId));
+          .where(eq(generations.id, job.payload.generationId));
 
         results.push({
           jobId: job.id,

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db, generations, sql } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth';
 import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { editImage } from '@/lib/ai/providers';
 import { generationQueue } from '@/lib/queue';
 import { storage } from '@/lib/storage';
-// sql imported from @/lib/db
+
 
 const requestSchema = z.object({
   imageUrl: z.string().url(),
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
           status: 'failed',
           error: result.error || 'Edit failed',
         })
-        .where(sql => sql.eq(generations.id, generation.id));
+        .where(eq(generations.id, generation.id));
 
       return NextResponse.json(
         { success: false, error: result.error || 'Edit failed' },

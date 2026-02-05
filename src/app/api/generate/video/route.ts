@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db, generations, sql } from '@/lib/db';
+import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth';
 import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { generateVideo } from '@/lib/ai/providers';
 import { generationQueue } from '@/lib/queue';
 import { storage } from '@/lib/storage';
-// sql imported from @/lib/db
+
 
 const requestSchema = z.object({
   imageUrl: z.string().url(),
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
           status: 'failed',
           error: result.error || 'Video generation failed',
         })
-        .where(sql => sql.eq(generations.id, generation.id));
+        .where(eq(generations.id, generation.id));
 
       return NextResponse.json(
         { success: false, error: result.error || 'Video generation failed' },
@@ -121,7 +122,7 @@ export async function POST(request: NextRequest) {
         metadata: result.metadata,
         completedAt: new Date(),
       })
-      .where(sql => sql.eq(generations.id, generation.id));
+      .where(eq(generations.id, generation.id));
 
     return NextResponse.json({
       success: true,
