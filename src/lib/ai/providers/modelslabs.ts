@@ -11,6 +11,17 @@ export class ModelsLabsProvider extends BaseProvider {
     return auth.replace('Bearer ', '');
   }
 
+  // Convert width/height to aspect ratio for nano-banana-pro
+  private getAspectRatio(width: number, height: number): string {
+    const ratio = width / height;
+    if (ratio === 1) return '1:1';
+    if (ratio > 1.7 && ratio < 1.8) return '16:9';
+    if (ratio > 0.55 && ratio < 0.6) return '9:16';
+    if (ratio > 1.3 && ratio < 1.4) return '4:3';
+    if (ratio > 0.7 && ratio < 0.8) return '3:4';
+    return '1:1'; // default
+  }
+
   async generate(
     config: ModelConfig,
     prompt: EnhancedPrompt,
@@ -26,25 +37,42 @@ export class ModelsLabsProvider extends BaseProvider {
         apiKeyLength: apiKey?.length,
       });
       
-      const payload = {
+      const width = config.parameters.width || 1024;
+      const height = config.parameters.height || 1024;
+      const aspectRatio = this.getAspectRatio(width as number, height as number);
+      
+      // Build payload based on model type
+      const isNanoBanana = config.model === 'nano-banana-pro';
+      
+      const payload: Record<string, unknown> = {
         key: apiKey,
         prompt: prompt.enhanced,
-        negative_prompt: options?.negativePrompt || '',
-        width: config.parameters.width || 1024,
-        height: config.parameters.height || 1024,
-        num_inference_steps: config.parameters.num_inference_steps || 30,
-        guidance_scale: config.parameters.guidance_scale || 7.5,
-        scheduler: config.parameters.scheduler || 'DPMSolverMultistep',
         model_id: config.model,
         samples: '1',
         safety_checker: 'no',
-        enhance_prompt: 'yes',
-        tomesd: 'yes',
-        use_karras_sigmas: 'yes',
-        ...options,
       };
+      
+      if (isNanoBanana) {
+        // Nano Banana Pro uses aspect_ratio
+        payload.aspect_ratio = aspectRatio;
+      } else {
+        // Other models use width/height
+        payload.width = width;
+        payload.height = height;
+        payload.negative_prompt = options?.negativePrompt || '';
+        payload.num_inference_steps = config.parameters.num_inference_steps || 30;
+        payload.guidance_scale = config.parameters.guidance_scale || 7.5;
+        payload.scheduler = config.parameters.scheduler || 'DPMSolverMultistep';
+        payload.enhance_prompt = 'yes';
+        payload.tomesd = 'yes';
+        payload.use_karras_sigmas = 'yes';
+      }
+      
+      // Merge any additional options
+      Object.assign(payload, options);
 
       console.log('Sending request to ModelsLabs:', config.endpoint);
+      console.log('Payload:', JSON.stringify(payload, null, 2));
       
       const response = await this.fetchWithTimeout(
         config.endpoint,
