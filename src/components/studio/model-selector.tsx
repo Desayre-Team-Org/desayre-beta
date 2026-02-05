@@ -20,12 +20,18 @@ const modelOptions: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
+// Nano Banana Pro aspect ratios
 const resolutionOptions = [
-  { value: '512x512', label: '512x512 (Fast)' },
-  { value: '768x768', label: '768x768' },
-  { value: '1024x1024', label: '1024x1024 (HD)' },
-  { value: '1024x576', label: '1024x576 (Landscape)' },
-  { value: '576x1024', label: '576x1024 (Portrait)' },
+  { value: '1:1', label: '1:1 (Square)' },
+  { value: '9:16', label: '9:16 (Portrait Vertical)' },
+  { value: '2:3', label: '2:3 (Portrait)' },
+  { value: '3:4', label: '3:4 (Portrait)' },
+  { value: '4:5', label: '4:5 (Portrait)' },
+  { value: '5:4', label: '5:4 (Landscape)' },
+  { value: '4:3', label: '4:3 (Landscape)' },
+  { value: '3:2', label: '3:2 (Landscape)' },
+  { value: '16:9', label: '16:9 (Widescreen)' },
+  { value: '21:9', label: '21:9 (Ultrawide)' },
 ];
 
 const videoResolutionOptions = [

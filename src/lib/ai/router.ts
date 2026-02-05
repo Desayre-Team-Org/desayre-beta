@@ -25,7 +25,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     name: 'Nano Banana Pro',
     provider: 'modelslabs',
     type: ['image'],
-    resolutions: ['512x512', '768x768', '1024x1024', '1024x576', '576x1024'],
+    resolutions: ['1:1', '9:16', '2:3', '3:4', '4:5', '5:4', '4:3', '3:2', '16:9', '21:9'],
     maxPromptLength: 500,
     costPerGeneration: 0.002,
     averageTimeSeconds: 8,

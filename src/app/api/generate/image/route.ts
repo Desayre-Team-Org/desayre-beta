@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
     
     const result = await generateImage(modelConfig, enhancedPrompt, {
       negativePrompt: encoder.getNegativePrompt(),
+      resolution,
     });
 
     console.log('Generation result:', {

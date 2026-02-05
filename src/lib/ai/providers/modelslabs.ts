@@ -11,8 +11,14 @@ export class ModelsLabsProvider extends BaseProvider {
     return auth.replace('Bearer ', '');
   }
 
-  // Convert width/height to aspect ratio for nano-banana-pro
-  private getAspectRatio(width: number, height: number): string {
+  // Parse resolution to aspect ratio for nano-banana-pro
+  private getAspectRatio(resolution: string): string {
+    // If already an aspect ratio format (e.g., "16:9"), return as-is
+    if (resolution.includes(':')) {
+      return resolution;
+    }
+    // Otherwise convert from widthxheight format
+    const [width, height] = resolution.split('x').map(Number);
     const ratio = width / height;
     if (ratio === 1) return '1:1';
     if (ratio > 1.7 && ratio < 1.8) return '16:9';
@@ -37,13 +43,13 @@ export class ModelsLabsProvider extends BaseProvider {
         apiKeyLength: apiKey?.length,
       });
       
-      const width = config.parameters.width || 1024;
-      const height = config.parameters.height || 1024;
-      const aspectRatio = this.getAspectRatio(width as number, height as number);
-      
       // Build payload for API v7
       // Nano Banana Pro uses aspect_ratio instead of width/height
       const isNanoBanana = config.model === 'nano-banana-pro';
+      
+      // Get resolution from config or options
+      const resolution = (options?.resolution as string) || '1:1';
+      const aspectRatio = this.getAspectRatio(resolution);
       
       const payload: Record<string, unknown> = {
         key: apiKey,
@@ -58,6 +64,8 @@ export class ModelsLabsProvider extends BaseProvider {
         payload.aspect_ratio = aspectRatio;
       } else {
         // Other models use width/height
+        const width = config.parameters.width || 1024;
+        const height = config.parameters.height || 1024;
         payload.width = width;
         payload.height = height;
         payload.negative_prompt = options?.negativePrompt || '';

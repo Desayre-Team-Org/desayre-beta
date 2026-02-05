@@ -16,7 +16,7 @@ type GenerationType = 'image' | 'edit' | 'video';
 export default function StudioPage() {
   const [activeTab, setActiveTab] = useState<GenerationType>('image');
   const [prompt, setPrompt] = useState('');
-  const [resolution, setResolution] = useState('1024x1024');
+  const [resolution, setResolution] = useState('1:1');
   const [isGenerating, setIsGenerating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url?: string; error?: string }>({});
