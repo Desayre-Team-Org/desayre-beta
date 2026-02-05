@@ -83,6 +83,12 @@ export class AIRouter {
       modelslabs: process.env.MODELS_LABS_API_KEY || '',
       xai: process.env.XAI_API_KEY || '',
     };
+    
+    console.log('AIRouter initialized:', {
+      hasModelsLabsKey: !!this.apiKeys.modelslabs,
+      modelsLabsKeyLength: this.apiKeys.modelslabs?.length,
+      hasXaiKey: !!this.apiKeys.xai,
+    });
   }
 
   route(config: RouteConfig): ModelConfig {
