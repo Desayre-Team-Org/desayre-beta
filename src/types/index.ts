@@ -49,6 +49,7 @@ export interface GenerationJob {
 }
 
 export interface GenerationJobPayload {
+  generationId: string;
   prompt: string;
   enhancedPrompt: string;
   modelConfig: ModelConfig;
