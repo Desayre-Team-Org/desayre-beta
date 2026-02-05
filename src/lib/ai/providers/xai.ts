@@ -98,10 +98,7 @@ export class XAIProvider extends BaseProvider {
       try {
         const response = await fetch(pollEndpoint, {
           method: 'GET',
-          headers: {
-            ...config.headers,
-            'Content-Type': undefined,
-          } as Record<string, string>,
+          headers: config.headers,
         });
 
         if (!response.ok) {
