@@ -90,7 +90,13 @@ export class ModelsLabsProvider extends BaseProvider {
       // Check for API error response
       if (data.status === 'error') {
         console.error('ModelsLabs API error response:', JSON.stringify(data, null, 2));
-        throw new Error(`ModelsLabs API error: ${data.message || JSON.stringify(data)}`);
+        throw new Error(`ModelsLabs API error: ${data.messege || data.message || JSON.stringify(data)}`);
+      }
+
+      // Handle processing status - need to poll for result
+      if (data.status === 'processing' && data.fetch_result) {
+        console.log('ModelsLabs processing, polling for result:', data.fetch_result);
+        return this.pollForResult(data.fetch_result, apiKey, config.model);
       }
 
       // Handle different response formats
@@ -121,6 +127,74 @@ export class ModelsLabsProvider extends BaseProvider {
     } catch (error) {
       return this.handleError(error);
     }
+  }
+
+  // Poll for result when API returns processing status
+  private async pollForResult(
+    fetchUrl: string,
+    apiKey: string,
+    modelId: string,
+    maxAttempts: number = 30,
+    delayMs: number = 2000
+  ): Promise<GenerationResult> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      console.log(`Polling for result, attempt ${attempt + 1}/${maxAttempts}`);
+      
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      
+      try {
+        const response = await fetch(fetchUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: apiKey }),
+        });
+        
+        if (!response.ok) {
+          console.error('Poll response not OK:', response.status);
+          continue;
+        }
+        
+        const data = await response.json();
+        console.log('Poll response:', JSON.stringify(data).slice(0, 200));
+        
+        if (data.status === 'success') {
+          let imageUrl: string | undefined;
+          
+          if (data.image_url) {
+            imageUrl = data.image_url;
+          } else if (data.output && data.output[0]) {
+            imageUrl = data.output[0];
+          } else if (data.images && data.images[0]) {
+            imageUrl = data.images[0];
+          }
+          
+          if (imageUrl) {
+            return {
+              success: true,
+              url: imageUrl,
+              metadata: {
+                inferenceTime: data.inference_time,
+                seed: data.seed,
+                modelUsed: modelId,
+              },
+            };
+          }
+        } else if (data.status === 'error') {
+          return {
+            success: false,
+            error: `ModelsLabs processing error: ${data.messege || data.message || 'Unknown error'}`,
+          };
+        }
+        // If still processing, continue polling
+      } catch (error) {
+        console.error('Poll error:', error);
+      }
+    }
+    
+    return {
+      success: false,
+      error: 'Timeout waiting for image generation',
+    };
   }
 
   async edit(
