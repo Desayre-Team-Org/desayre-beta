@@ -100,7 +100,8 @@ export class ModelsLabsProvider extends BaseProvider {
 
       // Check for API error response
       if (data.status === 'error') {
-        throw new Error(`ModelsLabs API error: ${data.message || 'Unknown error'}`);
+        console.error('ModelsLabs API error response:', JSON.stringify(data, null, 2));
+        throw new Error(`ModelsLabs API error: ${data.message || JSON.stringify(data)}`);
       }
 
       // Handle different response formats
