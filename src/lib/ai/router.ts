@@ -20,9 +20,9 @@ interface ModelDefinition {
 }
 
 const MODEL_REGISTRY: Record<string, ModelDefinition> = {
-  'nano-banana-pro': {
-    id: 'nano-banana-pro',
-    name: 'Nano Banana Pro',
+  'realistic-vision': {
+    id: 'realistic-vision-v51',
+    name: 'Realistic Vision',
     provider: 'modelslabs',
     type: ['image'],
     resolutions: ['512x512', '768x768', '1024x1024', '1024x576', '576x1024'],

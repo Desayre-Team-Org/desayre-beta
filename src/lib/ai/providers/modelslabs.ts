@@ -41,35 +41,24 @@ export class ModelsLabsProvider extends BaseProvider {
       const height = config.parameters.height || 1024;
       const aspectRatio = this.getAspectRatio(width as number, height as number);
       
-      // Build payload based on model type
-      const isNanoBanana = config.model === 'nano-banana-pro';
-      
+      // Build payload
       const payload: Record<string, unknown> = {
         key: apiKey,
         prompt: prompt.enhanced,
         model_id: config.model,
+        width: width,
+        height: height,
         samples: '1',
         safety_checker: 'no',
+        negative_prompt: options?.negativePrompt || '',
+        num_inference_steps: config.parameters.num_inference_steps || 30,
+        guidance_scale: config.parameters.guidance_scale || 7.5,
+        scheduler: config.parameters.scheduler || 'DPMSolverMultistep',
+        enhance_prompt: 'yes',
+        tomesd: 'yes',
+        use_karras_sigmas: 'yes',
+        ...options,
       };
-      
-      if (isNanoBanana) {
-        // Nano Banana Pro uses aspect_ratio
-        payload.aspect_ratio = aspectRatio;
-      } else {
-        // Other models use width/height
-        payload.width = width;
-        payload.height = height;
-        payload.negative_prompt = options?.negativePrompt || '';
-        payload.num_inference_steps = config.parameters.num_inference_steps || 30;
-        payload.guidance_scale = config.parameters.guidance_scale || 7.5;
-        payload.scheduler = config.parameters.scheduler || 'DPMSolverMultistep';
-        payload.enhance_prompt = 'yes';
-        payload.tomesd = 'yes';
-        payload.use_karras_sigmas = 'yes';
-      }
-      
-      // Merge any additional options
-      Object.assign(payload, options);
 
       console.log('Sending request to ModelsLabs:', config.endpoint);
       console.log('Payload:', JSON.stringify(payload, null, 2));
