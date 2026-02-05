@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db, generations } from '@/lib/db';
+import { db, generations, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
-import { desc, eq, and, gte, lte, sql } from 'drizzle-orm';
+import { desc, eq, and, gte, lte } from 'drizzle-orm';
 import { GenerationType, GenerationStatus } from '@/types';
 
 const querySchema = z.object({

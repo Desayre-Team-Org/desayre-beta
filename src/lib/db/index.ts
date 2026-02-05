@@ -9,3 +9,6 @@ const client = postgres(connectionString, { prepare: false });
 export const db = drizzle(client, { schema });
 
 export * from './schema';
+
+// Re-export sql for use in queries
+export { sql } from 'drizzle-orm';

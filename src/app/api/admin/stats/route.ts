@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, generations } from '@/lib/db';
+import { db, generations, sql } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
-import { sql, eq, gte, and } from 'drizzle-orm';
+import { eq, gte, and } from 'drizzle-orm';
 import { generationQueue } from '@/lib/queue';
 
 export async function GET(request: NextRequest) {

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db, generations } from '@/lib/db';
+import { db, generations, sql } from '@/lib/db';
 import { requireAuth } from '@/lib/auth';
 import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { generateVideo } from '@/lib/ai/providers';
 import { generationQueue } from '@/lib/queue';
 import { storage } from '@/lib/storage';
-import { sql } from 'drizzle-orm';
+// sql imported from @/lib/db
 
 const requestSchema = z.object({
   imageUrl: z.string().url(),

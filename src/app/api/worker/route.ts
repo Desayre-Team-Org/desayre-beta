@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generationQueue } from '@/lib/queue';
-import { db, generations } from '@/lib/db';
+import { db, generations, sql } from '@/lib/db';
 import { generateImage, editImage, generateVideo } from '@/lib/ai/providers';
 import { storage } from '@/lib/storage';
-import { sql } from 'drizzle-orm';
+// sql imported from @/lib/db
 
 // This route processes queued generation jobs
 // It should be called by a cron job or queue worker
