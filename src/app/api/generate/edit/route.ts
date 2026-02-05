@@ -9,32 +9,49 @@ import { editImage } from '@/lib/ai/providers';
 import { generationQueue } from '@/lib/queue';
 import { storage } from '@/lib/storage';
 
-
-const requestSchema = z.object({
-  imageUrl: z.string().url(),
-  prompt: z.string().min(1).max(500),
-  instructions: z.string().max(500).optional(),
-  resolution: z.enum(['512x512', '768x768', '1024x1024']).optional(),
-  async: z.boolean().optional().default(false),
-});
+// Helper to parse form data
+async function parseFormData(request: NextRequest) {
+  const formData = await request.formData();
+  const file = formData.get('image') as File | null;
+  const prompt = formData.get('prompt') as string;
+  const instructions = formData.get('instructions') as string | null;
+  const resolution = formData.get('resolution') as string | null;
+  const imageUrl = formData.get('imageUrl') as string | null;
+  
+  return { file, prompt, instructions, resolution, imageUrl };
+}
 
 export async function POST(request: NextRequest) {
   try {
     // Authenticate
     const session = await requireAuth(request);
 
-    // Parse and validate request
-    const body = await request.json();
-    const validation = requestSchema.safeParse(body);
+    // Parse form data
+    const { file, prompt, instructions, resolution, imageUrl: providedImageUrl } = await parseFormData(request);
 
-    if (!validation.success) {
+    if (!prompt) {
       return NextResponse.json(
-        { success: false, error: 'Invalid request', details: validation.error.errors },
+        { success: false, error: 'Prompt is required' },
         { status: 400 }
       );
     }
 
-    const { imageUrl, prompt, instructions, resolution, async: isAsync } = validation.data;
+    // Handle image upload or URL
+    let imageUrl = providedImageUrl;
+    
+    if (file) {
+      // Upload file to R2
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const upload = await storage.uploadBuffer(buffer, 'images', file.type);
+      imageUrl = upload.publicUrl;
+    }
+
+    if (!imageUrl) {
+      return NextResponse.json(
+        { success: false, error: 'Image is required (file or URL)' },
+        { status: 400 }
+      );
+    }
 
     // Encode prompt
     const encoder = createPromptEncoder('edit', { style: 'photorealistic', quality: 'high' });

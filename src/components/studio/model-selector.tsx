@@ -13,7 +13,7 @@ const modelOptions: Record<string, { value: string; label: string }[]> = {
     { value: 'nano-banana-pro', label: 'Nano Banana Pro (Recommended)' },
   ],
   edit: [
-    { value: 'grok-imagine-edit', label: 'Grok Imagine Image Edit' },
+    { value: 'grok-imagine-image-i2i', label: 'Grok Imagine Image Edit' },
   ],
   video: [
     { value: 'grok-imagine-video', label: 'Grok Imagine Video' },

@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { PromptInput } from '@/components/studio/prompt-input';
 import { ModelSelector, ResolutionSelector } from '@/components/studio/model-selector';
+import { ImageUpload } from '@/components/studio/image-upload';
 import { PreviewPanel } from '@/components/studio/preview-panel';
 import { HistorySidebar } from '@/components/studio/history-sidebar';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ export default function StudioPage() {
   const [result, setResult] = useState<{ url?: string; error?: string }>({});
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [inputImageUrl, setInputImageUrl] = useState('');
+  const [inputImageFile, setInputImageFile] = useState<File | null>(null);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -40,23 +42,48 @@ export default function StudioPage() {
 
     try {
       const endpoint = `/api/generate/${activeTab}`;
-      const body: Record<string, unknown> = {
-        prompt,
-        resolution,
-      };
-
-      if (activeTab === 'edit' || activeTab === 'video') {
-        if (!inputImageUrl) {
-          setResult({ error: 'Please provide an input image URL' });
+      
+      let body: BodyInit;
+      let headers: Record<string, string> = {};
+      
+      // For edit mode, use FormData to support file upload
+      if (activeTab === 'edit') {
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        formData.append('resolution', resolution);
+        
+        if (inputImageFile) {
+          formData.append('image', inputImageFile);
+        } else if (inputImageUrl) {
+          formData.append('imageUrl', inputImageUrl);
+        } else {
+          setResult({ error: 'Please upload an image or provide an image URL' });
+          setIsGenerating(false);
+          clearInterval(progressInterval);
           return;
         }
-        body.imageUrl = inputImageUrl;
+        
+        body = formData;
+        // Don't set Content-Type for FormData, browser will set it with boundary
+      } else {
+        // For image and video, use JSON
+        const jsonBody: Record<string, unknown> = {
+          prompt,
+          resolution,
+        };
+        
+        if (activeTab === 'video' && inputImageUrl) {
+          jsonBody.imageUrl = inputImageUrl;
+        }
+        
+        body = JSON.stringify(jsonBody);
+        headers['Content-Type'] = 'application/json';
       }
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        headers,
+        body,
       });
 
       const data = await response.json();
@@ -79,7 +106,7 @@ export default function StudioPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, resolution, activeTab, inputImageUrl]);
+  }, [prompt, resolution, activeTab, inputImageUrl, inputImageFile]);
 
   const tabs = [
     { id: 'image' as const, label: 'Image', icon: Sparkles },
@@ -141,7 +168,25 @@ export default function StudioPage() {
                   onChange={setResolution}
                   type={activeTab}
                 />
-                {(activeTab === 'edit' || activeTab === 'video') && (
+                {activeTab === 'edit' && (
+                  <div className="sm:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-text-secondary">
+                      Input Image
+                    </label>
+                    <ImageUpload
+                      value={inputImageUrl}
+                      onChange={(url, file) => {
+                        setInputImageUrl(url);
+                        if (file) setInputImageFile(file);
+                      }}
+                      onClear={() => {
+                        setInputImageUrl('');
+                        setInputImageFile(null);
+                      }}
+                    />
+                  </div>
+                )}
+                {activeTab === 'video' && (
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-text-secondary">
                       Input Image URL
