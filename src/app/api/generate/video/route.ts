@@ -27,12 +27,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle image upload or URL
-    let imageUrl = providedImageUrl;
+    let imageUrl: string | undefined;
+    let imageUrlForXai: string | undefined;
 
     if (file) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const upload = await storage.uploadBuffer(buffer, 'images', file.type);
       imageUrl = upload.publicUrl;
+      // Use a signed URL to guarantee external access even if the bucket isn't public
+      imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
+    } else if (providedImageUrl) {
+      if (providedImageUrl.startsWith('data:')) {
+        const upload = await storage.uploadBase64(providedImageUrl, 'images');
+        imageUrl = upload.publicUrl;
+        imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
+      } else {
+        try {
+          const upload = await storage.uploadFromUrl(providedImageUrl, 'images');
+          imageUrl = upload.publicUrl;
+          imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
+        } catch {
+          // Fallback to the original URL if rehosting fails
+          imageUrl = providedImageUrl;
+          imageUrlForXai = providedImageUrl;
+        }
+      }
     }
 
     // Encode prompt for video
@@ -83,7 +102,12 @@ export async function POST(request: NextRequest) {
     console.log('[VIDEO] Starting video generation with config:', modelConfig.model);
     
     // Generate video (async with polling)
-    const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl || undefined, videoParams);
+    const result = await generateVideo(
+      modelConfig,
+      enhancedPrompt,
+      imageUrlForXai || undefined,
+      videoParams
+    );
     
     console.log('[VIDEO] Generation result:', JSON.stringify(result, null, 2));
 
