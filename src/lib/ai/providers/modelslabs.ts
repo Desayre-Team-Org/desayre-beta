@@ -287,7 +287,7 @@ export class ModelsLabsProvider extends BaseProvider {
   async generateVideo(
     config: ModelConfig,
     prompt: EnhancedPrompt,
-    imageUrl: string
+    imageUrl?: string
   ): Promise<GenerationResult> {
     throw new Error('Video generation not supported by ModelsLabs provider');
   }
