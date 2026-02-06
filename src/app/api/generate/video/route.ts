@@ -50,7 +50,10 @@ export async function POST(request: NextRequest) {
     const videoParams: Record<string, unknown> = {};
     if (aspectRatio) videoParams.aspect_ratio = aspectRatio;
     if (quality) videoParams.resolution = quality;
-    if (duration) videoParams.duration = parseInt(duration);
+    const durationValue = duration ? parseInt(duration) : 5;
+    videoParams.duration = durationValue;
+
+    console.log(`[VIDEO] Parameters: aspectRatio=${aspectRatio}, quality=${quality}, duration=${durationValue}`);
 
     // Create generation record
     const [generation] = await db
@@ -64,6 +67,7 @@ export async function POST(request: NextRequest) {
         modelUsed: modelConfig.model,
         provider: modelConfig.provider,
         resolution: aspectRatio || undefined,
+        duration: durationValue,
         inputImageUrl: imageUrl || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
       })

@@ -19,6 +19,7 @@ export const generations = pgTable('generations', {
   modelUsed: varchar('model_used', { length: 255 }).notNull(),
   provider: varchar('provider', { length: 100 }).notNull(),
   resolution: varchar('resolution', { length: 50 }),
+  duration: integer('duration'),
   costEstimate: decimal('cost_estimate', { precision: 10, scale: 6 }),
   outputUrl: text('output_url'),
   inputImageUrl: text('input_image_url'),

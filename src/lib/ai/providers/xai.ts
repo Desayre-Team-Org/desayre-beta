@@ -42,7 +42,8 @@ export class XAIProvider extends BaseProvider {
         payload.image_url = imageUrl;
       }
 
-      console.log('Starting xAI video generation:', payload);
+      console.log('[XAI] Starting video generation with payload:', JSON.stringify(payload, null, 2));
+      console.log(`[XAI] Duration requested: ${options?.duration || 'not set (default)'}`);
       console.log('xAI endpoint:', config.endpoint);
 
       const response = await this.fetchWithTimeout(
