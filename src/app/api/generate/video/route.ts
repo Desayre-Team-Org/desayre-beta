@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     console.log('[VIDEO] Starting video generation with config:', modelConfig.model);
     
     // Generate video (async with polling)
-    const result = await generateVideo(
+    let result = await generateVideo(
       modelConfig,
       enhancedPrompt,
       modelConfig.provider === 'xai' ? imageUrlForXai || undefined : undefined,
@@ -200,6 +200,49 @@ export async function POST(request: NextRequest) {
           : {}),
       }
     );
+
+    let finalProvider = modelConfig.provider;
+    let finalModel = modelConfig.model;
+    let fallbackInfo: Record<string, unknown> | undefined;
+
+    if (
+      !result.success &&
+      modelConfig.provider === 'higgsfield' &&
+      /nsfw/i.test(result.error || '')
+    ) {
+      const fallbackModelConfig = aiRouter.route({
+        type: 'video',
+        resolution: aspectRatio || undefined,
+        priority: 'quality',
+        modelId: 'grok-imagine-video',
+      });
+
+      const fallbackImageUrl =
+        imageUrlForXai || referenceSignedUrls[0] || undefined;
+
+      const fallbackResult = await generateVideo(
+        fallbackModelConfig,
+        enhancedPrompt,
+        fallbackImageUrl,
+        videoParams
+      );
+
+      if (fallbackResult.success) {
+        fallbackInfo = {
+          fallbackFrom: modelConfig.provider,
+          fallbackReason: result.error,
+        };
+        result = fallbackResult;
+        finalProvider = fallbackModelConfig.provider;
+        finalModel = fallbackModelConfig.model;
+      } else {
+        result = {
+          success: false,
+          error: `Higgsfield blocked (NSFW). Fallback failed: ${fallbackResult.error || 'Unknown error'}`,
+          metadata: fallbackResult.metadata,
+        };
+      }
+    }
     
     console.log('[VIDEO] Generation result:', JSON.stringify(result, null, 2));
 
@@ -232,9 +275,12 @@ export async function POST(request: NextRequest) {
       .set({
         status: 'completed',
         outputUrl: upload.publicUrl,
+        provider: finalProvider,
+        modelUsed: finalModel,
         metadata: {
           ...(result.metadata || {}),
           ...(referencePublicUrls.length > 0 ? { referenceImages: referencePublicUrls } : {}),
+          ...(fallbackInfo ? { fallback: fallbackInfo } : {}),
         },
         completedAt: new Date(),
       })
