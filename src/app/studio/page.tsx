@@ -255,7 +255,8 @@ export default function StudioPage() {
 
           {/* Preview */}
           <PreviewPanel
-            imageUrl={result.url}
+            imageUrl={activeTab !== 'video' ? result.url : undefined}
+            videoUrl={activeTab === 'video' ? result.url : undefined}
             isLoading={isGenerating}
             progress={progress}
             status={isGenerating ? 'processing' : result.error ? 'failed' : result.url ? 'completed' : 'idle'}
