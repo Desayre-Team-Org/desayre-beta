@@ -72,7 +72,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
 
 const PROVIDER_ENDPOINTS: Record<ModelProvider, string> = {
   modelslabs: 'https://modelslab.com/api/v7',
-  xai: 'https://api.x.ai/v1/video/generations',
+  xai: 'https://api.x.ai/v1',
 };
 
 export class AIRouter {
@@ -162,8 +162,11 @@ export class AIRouter {
       }
     }
     
-    // xAI endpoint is already complete for video
+    // xAI endpoints
     if (model.provider === 'xai') {
+      if (type === 'video') {
+        return `${baseUrl}/video/generations`;
+      }
       return baseUrl;
     }
     
