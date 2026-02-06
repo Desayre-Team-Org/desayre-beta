@@ -1,15 +1,18 @@
 import { BaseProvider } from './base';
 import { modelslabsProvider } from './modelslabs';
 import { xaiProvider } from './xai';
+import { higgsfieldProvider } from './higgsfield';
 import { ModelProvider, ModelConfig, EnhancedPrompt, GenerationType } from '@/types';
 
 export * from './base';
 export { modelslabsProvider } from './modelslabs';
 export { xaiProvider } from './xai';
+export { higgsfieldProvider } from './higgsfield';
 
 const providers: Record<ModelProvider, BaseProvider> = {
   modelslabs: modelslabsProvider,
   xai: xaiProvider,
+  higgsfield: higgsfieldProvider,
 };
 
 export function getProvider(provider: ModelProvider): BaseProvider {

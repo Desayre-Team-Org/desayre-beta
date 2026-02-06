@@ -49,3 +49,6 @@ drizzle/*.json
 # Temporary files
 *.tmp
 *.temp
+
+# SDK inspection artifacts
+scripts/_higgsfield_sdk/

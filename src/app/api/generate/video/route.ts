@@ -13,11 +13,14 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('image') as File | null;
+    const model = formData.get('model') as string | null;
     const prompt = formData.get('prompt') as string;
     const aspectRatio = formData.get('aspectRatio') as string | null;
     const quality = formData.get('quality') as string | null;
     const duration = formData.get('duration') as string | null;
     const providedImageUrl = formData.get('imageUrl') as string | null;
+    const referenceImageUrlsRaw = formData.get('referenceImageUrls') as string | null;
+    const referenceFiles = formData.getAll('referenceImages') as File[];
 
     if (!prompt) {
       return NextResponse.json(
@@ -26,32 +29,81 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const uploadFromFile = async (fileToUpload: File) => {
+      const buffer = Buffer.from(await fileToUpload.arrayBuffer());
+      const upload = await storage.uploadBuffer(buffer, 'images', fileToUpload.type);
+      const signedUrl = await storage.getSignedDownloadUrl(upload.key);
+      return { publicUrl: upload.publicUrl, signedUrl };
+    };
+
+    const uploadFromUrl = async (url: string) => {
+      if (url.startsWith('data:')) {
+        const upload = await storage.uploadBase64(url, 'images');
+        const signedUrl = await storage.getSignedDownloadUrl(upload.key);
+        return { publicUrl: upload.publicUrl, signedUrl };
+      }
+
+      try {
+        const upload = await storage.uploadFromUrl(url, 'images');
+        const signedUrl = await storage.getSignedDownloadUrl(upload.key);
+        return { publicUrl: upload.publicUrl, signedUrl };
+      } catch {
+        return { publicUrl: url, signedUrl: url };
+      }
+    };
+
     // Handle image upload or URL
     let imageUrl: string | undefined;
     let imageUrlForXai: string | undefined;
+    const referenceSignedUrls: string[] = [];
+    const referencePublicUrls: string[] = [];
 
     if (file) {
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const upload = await storage.uploadBuffer(buffer, 'images', file.type);
+      const upload = await uploadFromFile(file);
       imageUrl = upload.publicUrl;
-      // Use a signed URL to guarantee external access even if the bucket isn't public
-      imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
+      imageUrlForXai = upload.signedUrl;
+      referenceSignedUrls.push(upload.signedUrl);
+      referencePublicUrls.push(upload.publicUrl);
     } else if (providedImageUrl) {
-      if (providedImageUrl.startsWith('data:')) {
-        const upload = await storage.uploadBase64(providedImageUrl, 'images');
-        imageUrl = upload.publicUrl;
-        imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
-      } else {
-        try {
-          const upload = await storage.uploadFromUrl(providedImageUrl, 'images');
-          imageUrl = upload.publicUrl;
-          imageUrlForXai = await storage.getSignedDownloadUrl(upload.key);
-        } catch {
-          // Fallback to the original URL if rehosting fails
-          imageUrl = providedImageUrl;
-          imageUrlForXai = providedImageUrl;
+      const upload = await uploadFromUrl(providedImageUrl);
+      imageUrl = upload.publicUrl;
+      imageUrlForXai = upload.signedUrl;
+      referenceSignedUrls.push(upload.signedUrl);
+      referencePublicUrls.push(upload.publicUrl);
+    }
+
+    if (referenceImageUrlsRaw) {
+      try {
+        const parsed = JSON.parse(referenceImageUrlsRaw);
+        if (Array.isArray(parsed)) {
+          for (const url of parsed) {
+            if (typeof url === 'string' && url.trim()) {
+              const upload = await uploadFromUrl(url);
+              referenceSignedUrls.push(upload.signedUrl);
+              referencePublicUrls.push(upload.publicUrl);
+            }
+          }
+        }
+      } catch {
+        // Ignore invalid JSON
+      }
+    }
+
+    if (referenceFiles.length > 0) {
+      for (const refFile of referenceFiles) {
+        if (refFile && refFile.type?.startsWith('image/')) {
+          const upload = await uploadFromFile(refFile);
+          referenceSignedUrls.push(upload.signedUrl);
+          referencePublicUrls.push(upload.publicUrl);
         }
       }
+    }
+
+    if (referenceSignedUrls.length > 5) {
+      return NextResponse.json(
+        { success: false, error: 'Maximum of 5 reference images allowed.' },
+        { status: 400 }
+      );
     }
 
     // Encode prompt for video
@@ -60,14 +112,14 @@ export async function POST(request: NextRequest) {
     const encodedPrompt = encoder.encode(prompt);
     
     // For img2video, strongly instruct identity/appearance consistency
-    const imageConsistencyPrefix = imageUrlForXai
-      ? 'Use the provided reference image as the first frame. Preserve the subject identity, face, hair, body proportions, clothing, and background. Only animate the motion described. '
+    const imageConsistencyPrefix = referenceSignedUrls.length > 0
+      ? 'Use the provided reference images as the first frame(s). Preserve the subject identity, face, hair, body proportions, clothing, and background. Only animate the motion described. '
       : '';
 
     // For img2video, use original prompt to preserve subject identity
     const enhancedPrompt = {
       ...encodedPrompt,
-      enhanced: imageUrlForXai ? `${imageConsistencyPrefix}${prompt}` : encodedPrompt.enhanced,
+      enhanced: referenceSignedUrls.length > 0 ? `${imageConsistencyPrefix}${prompt}` : encodedPrompt.enhanced,
     };
 
     // Route to model
@@ -75,6 +127,7 @@ export async function POST(request: NextRequest) {
       type: 'video',
       resolution: aspectRatio || undefined,
       priority: 'quality',
+      modelId: model || undefined,
     });
 
     // Add video-specific parameters
@@ -85,6 +138,13 @@ export async function POST(request: NextRequest) {
     videoParams.duration = durationValue;
 
     console.log(`[VIDEO] Parameters: aspectRatio=${aspectRatio}, quality=${quality}, duration=${durationValue}`);
+
+    if (modelConfig.provider === 'higgsfield' && referenceSignedUrls.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Higgsfield Soul requires at least one reference image.' },
+        { status: 400 }
+      );
+    }
 
     // Create generation record
     const [generation] = await db
@@ -99,12 +159,13 @@ export async function POST(request: NextRequest) {
         provider: modelConfig.provider,
         resolution: aspectRatio || undefined,
         duration: durationValue,
-        inputImageUrl: imageUrl || undefined,
+        inputImageUrl: imageUrl || referencePublicUrls[0] || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
+        metadata: referencePublicUrls.length > 0 ? { referenceImages: referencePublicUrls } : undefined,
       })
       .returning();
 
-    if (imageUrlForXai) {
+    if (modelConfig.provider === 'xai' && imageUrlForXai) {
       try {
         const head = await fetch(imageUrlForXai, { method: 'HEAD' });
         if (!head.ok) {
@@ -131,8 +192,13 @@ export async function POST(request: NextRequest) {
     const result = await generateVideo(
       modelConfig,
       enhancedPrompt,
-      imageUrlForXai || undefined,
-      videoParams
+      modelConfig.provider === 'xai' ? imageUrlForXai || undefined : undefined,
+      {
+        ...videoParams,
+        ...(modelConfig.provider === 'higgsfield'
+          ? { referenceImageUrls: referenceSignedUrls }
+          : {}),
+      }
     );
     
     console.log('[VIDEO] Generation result:', JSON.stringify(result, null, 2));
@@ -166,7 +232,10 @@ export async function POST(request: NextRequest) {
       .set({
         status: 'completed',
         outputUrl: upload.publicUrl,
-        metadata: result.metadata,
+        metadata: {
+          ...(result.metadata || {}),
+          ...(referencePublicUrls.length > 0 ? { referenceImages: referencePublicUrls } : {}),
+        },
         completedAt: new Date(),
       })
       .where(eq(generations.id, generation.id));

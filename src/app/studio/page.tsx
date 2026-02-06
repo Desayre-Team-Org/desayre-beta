@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { PromptInput } from '@/components/studio/prompt-input';
 import { ModelSelector, ResolutionSelector, VideoQualitySelector } from '@/components/studio/model-selector';
 import { ImageUpload } from '@/components/studio/image-upload';
+import { ReferenceImagesUpload, ReferenceImageItem } from '@/components/studio/reference-images-upload';
 import { PreviewPanel } from '@/components/studio/preview-panel';
 import { HistorySidebar } from '@/components/studio/history-sidebar';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,8 @@ export default function StudioPage() {
   const [inputImageFile, setInputImageFile] = useState<File | null>(null);
   const [videoQuality, setVideoQuality] = useState('720p');
   const [videoDuration, setVideoDuration] = useState(5);
+  const [videoModel, setVideoModel] = useState('grok-imagine-video');
+  const [referenceImages, setReferenceImages] = useState<ReferenceImageItem[]>([]);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -74,11 +77,16 @@ export default function StudioPage() {
         formData.append('aspectRatio', resolution);
         formData.append('quality', videoQuality);
         formData.append('duration', videoDuration.toString());
+        formData.append('model', videoModel);
         
         if (inputImageFile) {
           formData.append('image', inputImageFile);
         } else if (inputImageUrl) {
           formData.append('imageUrl', inputImageUrl);
+        }
+
+        if (referenceImages.length > 0) {
+          referenceImages.forEach((item) => formData.append('referenceImages', item.file));
         }
         
         body = formData;
@@ -119,7 +127,17 @@ export default function StudioPage() {
     } finally {
       setIsGenerating(false);
     }
-  }, [prompt, resolution, activeTab, inputImageUrl, inputImageFile]);
+  }, [
+    prompt,
+    resolution,
+    activeTab,
+    inputImageUrl,
+    inputImageFile,
+    videoQuality,
+    videoDuration,
+    videoModel,
+    referenceImages,
+  ]);
 
   const tabs = [
     { id: 'image' as const, label: 'Image', icon: Sparkles },
@@ -176,6 +194,13 @@ export default function StudioPage() {
           <Card>
             <CardContent className="p-4">
               <div className="grid gap-4 sm:grid-cols-2">
+                {activeTab === 'video' && (
+                  <ModelSelector
+                    value={videoModel}
+                    onChange={(value) => setVideoModel(value)}
+                    type="video"
+                  />
+                )}
                 <ResolutionSelector
                   value={resolution}
                   onChange={setResolution}
@@ -247,6 +272,21 @@ export default function StudioPage() {
                         Upload an image to generate video from it, or leave empty for text-to-video
                       </p>
                     </div>
+                    {videoModel === 'higgsfield-soul-video' && (
+                      <div className="sm:col-span-2">
+                        <label className="mb-1.5 block text-sm font-medium text-text-secondary">
+                          Reference Images (Soul Mode)
+                        </label>
+                        <ReferenceImagesUpload
+                          items={referenceImages}
+                          onChange={setReferenceImages}
+                          max={5}
+                        />
+                        <p className="mt-1.5 text-xs text-text-secondary">
+                          Use 1–5 reference images to preserve identity. The input image above is also included if provided.
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

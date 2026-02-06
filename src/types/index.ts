@@ -1,6 +1,6 @@
 export type GenerationType = 'image' | 'edit' | 'video';
 export type GenerationStatus = 'pending' | 'processing' | 'completed' | 'failed';
-export type ModelProvider = 'modelslabs' | 'xai';
+export type ModelProvider = 'modelslabs' | 'xai' | 'higgsfield';
 
 export interface Generation {
   id: string;

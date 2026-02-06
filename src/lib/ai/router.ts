@@ -4,6 +4,7 @@ interface RouteConfig {
   type: GenerationType;
   resolution?: string;
   priority?: 'speed' | 'quality' | 'cost';
+  modelId?: string;
 }
 
 interface ModelDefinition {
@@ -68,11 +69,27 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
       motion_bucket_id: 127,
     },
   },
+  'higgsfield-soul-video': {
+    id: 'higgsfield-soul-video',
+    name: 'Higgsfield Soul Video',
+    provider: 'higgsfield',
+    type: ['video'],
+    resolutions: ['1:1', '9:16', '16:9', '4:3', '3:4', '3:2', '2:3'],
+    maxPromptLength: 500,
+    costPerGeneration: 0,
+    averageTimeSeconds: 60,
+    supportsNegativePrompt: false,
+    parameters: {
+      application: process.env.HIGGSFIELD_VIDEO_APP || '',
+      referenceImageParam: process.env.HIGGSFIELD_REFERENCE_IMAGE_PARAM || 'reference_image_urls',
+    },
+  },
 };
 
 const PROVIDER_ENDPOINTS: Record<ModelProvider, string> = {
   modelslabs: 'https://modelslab.com/api/v7',
   xai: 'https://api.x.ai/v1',
+  higgsfield: 'https://platform.higgsfield.ai',
 };
 
 export class AIRouter {
@@ -82,6 +99,7 @@ export class AIRouter {
     this.apiKeys = {
       modelslabs: process.env.MODELS_LABS_API_KEY || '',
       xai: process.env.XAI_API_KEY || '',
+      higgsfield: this.getHiggsfieldKey(),
     };
     
     console.log('AIRouter initialized:', {
@@ -107,6 +125,14 @@ export class AIRouter {
   }
 
   private selectModel(config: RouteConfig): ModelDefinition {
+    if (config.modelId) {
+      const model = MODEL_REGISTRY[config.modelId];
+      if (!model) {
+        throw new Error(`Model not found: ${config.modelId}`);
+      }
+      return model;
+    }
+
     const candidates = Object.values(MODEL_REGISTRY).filter(
       (m) => m.type.includes(config.type)
     );
@@ -171,6 +197,11 @@ export class AIRouter {
       }
       return baseUrl;
     }
+
+    // Higgsfield uses application paths appended to base URL
+    if (model.provider === 'higgsfield') {
+      return baseUrl;
+    }
     
     // Default fallback
     switch (type) {
@@ -189,7 +220,15 @@ export class AIRouter {
     const apiKey = this.apiKeys[provider];
     
     if (!apiKey) {
-      throw new Error(`API key not configured for provider: ${provider}. Please set ${provider === 'modelslabs' ? 'MODELS_LABS_API_KEY' : 'XAI_API_KEY'} environment variable.`);
+      const envHint =
+        provider === 'modelslabs'
+          ? 'MODELS_LABS_API_KEY'
+          : provider === 'xai'
+          ? 'XAI_API_KEY'
+          : 'HIGGSFIELD_API_KEY or HIGGSFIELD_API_KEY_ID/HIGGSFIELD_API_KEY_SECRET';
+      throw new Error(
+        `API key not configured for provider: ${provider}. Please set ${envHint} environment variable(s).`
+      );
     }
 
     switch (provider) {
@@ -203,9 +242,25 @@ export class AIRouter {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         };
+      case 'higgsfield':
+        return {
+          'Authorization': `Key ${apiKey}`,
+          'Content-Type': 'application/json',
+        };
       default:
         throw new Error(`Unknown provider: ${provider}`);
     }
+  }
+
+  private getHiggsfieldKey(): string {
+    const directKey = process.env.HIGGSFIELD_API_KEY || process.env.HF_KEY;
+    if (directKey) return directKey;
+
+    const keyId = process.env.HIGGSFIELD_API_KEY_ID || process.env.HF_API_KEY;
+    const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET || process.env.HF_API_SECRET;
+    if (keyId && keySecret) return `${keyId}:${keySecret}`;
+
+    return '';
   }
 
   private buildParameters(
