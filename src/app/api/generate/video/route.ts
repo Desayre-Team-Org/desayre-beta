@@ -36,8 +36,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Encode prompt for video
+    // When image is provided, use original prompt to preserve fidelity to the reference image
     const encoder = createPromptEncoder('video', { style: 'cinematic', quality: 'high' });
-    const enhancedPrompt = encoder.encode(prompt);
+    const encodedPrompt = encoder.encode(prompt);
+    
+    // For img2video, use original prompt to preserve subject identity
+    const enhancedPrompt = {
+      ...encodedPrompt,
+      enhanced: imageUrl ? prompt : encodedPrompt.enhanced,
+    };
 
     // Route to model
     const modelConfig = aiRouter.route({

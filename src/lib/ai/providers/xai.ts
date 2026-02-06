@@ -40,9 +40,12 @@ export class XAIProvider extends BaseProvider {
 
       if (imageUrl) {
         payload.image_url = imageUrl;
+        console.log(`[XAI] Image URL provided: ${imageUrl}`);
+      } else {
+        console.log('[XAI] No image URL provided - text-to-video mode');
       }
 
-      console.log('[XAI] Starting video generation with payload:', JSON.stringify(payload, null, 2));
+      console.log('[XAI] Final payload:', JSON.stringify(payload, null, 2));
       console.log(`[XAI] Duration requested: ${options?.duration || 'not set (default)'}`);
       console.log('xAI endpoint:', config.endpoint);
 
