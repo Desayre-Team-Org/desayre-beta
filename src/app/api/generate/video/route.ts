@@ -59,10 +59,15 @@ export async function POST(request: NextRequest) {
     const encoder = createPromptEncoder('video', { style: 'cinematic', quality: 'high' });
     const encodedPrompt = encoder.encode(prompt);
     
+    // For img2video, strongly instruct identity/appearance consistency
+    const imageConsistencyPrefix = imageUrlForXai
+      ? 'Use the provided reference image as the first frame. Preserve the subject identity, face, hair, body proportions, clothing, and background. Only animate the motion described. '
+      : '';
+
     // For img2video, use original prompt to preserve subject identity
     const enhancedPrompt = {
       ...encodedPrompt,
-      enhanced: imageUrl ? prompt : encodedPrompt.enhanced,
+      enhanced: imageUrlForXai ? `${imageConsistencyPrefix}${prompt}` : encodedPrompt.enhanced,
     };
 
     // Route to model
@@ -98,6 +103,27 @@ export async function POST(request: NextRequest) {
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
       })
       .returning();
+
+    if (imageUrlForXai) {
+      try {
+        const head = await fetch(imageUrlForXai, { method: 'HEAD' });
+        if (!head.ok) {
+          const get = await fetch(imageUrlForXai, { method: 'GET' });
+          get.body?.cancel();
+          if (!get.ok) {
+            return NextResponse.json(
+              { success: false, error: 'Reference image URL is not accessible to the video provider.' },
+              { status: 400 }
+            );
+          }
+        }
+      } catch (error) {
+        return NextResponse.json(
+          { success: false, error: 'Failed to verify reference image accessibility.' },
+          { status: 400 }
+        );
+      }
+    }
 
     console.log('[VIDEO] Starting video generation with config:', modelConfig.model);
     
