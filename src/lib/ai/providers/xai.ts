@@ -43,6 +43,7 @@ export class XAIProvider extends BaseProvider {
       }
 
       console.log('Starting xAI video generation:', payload);
+      console.log('xAI endpoint:', config.endpoint);
 
       const response = await this.fetchWithTimeout(
         config.endpoint,
@@ -83,21 +84,19 @@ export class XAIProvider extends BaseProvider {
     maxAttempts: number = 60,
     delayMs: number = 5000
   ): Promise<GenerationResult> {
-    const pollUrl = 'https://api.x.ai/v1/video/result';
+    const pollUrl = `https://api.x.ai/v1/video/result?request_id=${encodeURIComponent(requestId)}`;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`Polling for video result, attempt ${attempt + 1}/${maxAttempts}`);
+      console.log(`Polling for video result, attempt ${attempt + 1}/${maxAttempts}, requestId: ${requestId}`);
 
       await new Promise(resolve => setTimeout(resolve, delayMs));
 
       try {
         const response = await fetch(pollUrl, {
-          method: 'POST',
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`,
           },
-          body: JSON.stringify({ request_id: requestId }),
         });
 
         if (!response.ok) {

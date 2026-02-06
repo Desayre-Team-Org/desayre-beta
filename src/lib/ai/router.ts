@@ -165,7 +165,9 @@ export class AIRouter {
     // xAI endpoints
     if (model.provider === 'xai') {
       if (type === 'video') {
-        return `${baseUrl}/video/generations`;
+        const endpoint = `${baseUrl}/video/generations`;
+        console.log('Building xAI video endpoint:', endpoint);
+        return endpoint;
       }
       return baseUrl;
     }
