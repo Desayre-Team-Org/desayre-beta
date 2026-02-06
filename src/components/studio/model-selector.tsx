@@ -61,18 +61,13 @@ export function ResolutionSelector({
   type?: 'image' | 'edit' | 'video';
 }) {
   const options = type === 'video' ? videoResolutionOptions : resolutionOptions;
-  
-  // Filter options based on type
-  const filteredOptions = type === 'edit' 
-    ? options.filter(o => ['512x512', '768x768', '1024x1024'].includes(o.value))
-    : options;
 
   return (
     <Select
       label="Resolution"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      options={filteredOptions}
+      options={options}
     />
   );
 }
