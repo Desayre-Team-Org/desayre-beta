@@ -9,7 +9,8 @@
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:apply": "node scripts/apply-migration.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.712.0",
