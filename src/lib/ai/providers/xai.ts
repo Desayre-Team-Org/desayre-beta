@@ -26,7 +26,7 @@ export class XAIProvider extends BaseProvider {
     config: ModelConfig,
     prompt: EnhancedPrompt,
     imageUrl?: string,
-    videoUrl?: string
+    options?: Record<string, unknown>
   ): Promise<GenerationResult> {
     try {
       const apiKey = this.getApiKey(config.headers);
@@ -35,14 +35,11 @@ export class XAIProvider extends BaseProvider {
       const payload: Record<string, unknown> = {
         model: config.model,
         prompt: prompt.enhanced,
+        ...options,
       };
 
       if (imageUrl) {
         payload.image_url = imageUrl;
-      }
-
-      if (videoUrl) {
-        payload.video_url = videoUrl;
       }
 
       console.log('Starting xAI video generation:', payload);

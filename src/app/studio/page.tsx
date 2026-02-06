@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { MainLayout } from '@/components/layout/main-layout';
 import { PromptInput } from '@/components/studio/prompt-input';
-import { ModelSelector, ResolutionSelector } from '@/components/studio/model-selector';
+import { ModelSelector, ResolutionSelector, VideoQualitySelector } from '@/components/studio/model-selector';
 import { ImageUpload } from '@/components/studio/image-upload';
 import { PreviewPanel } from '@/components/studio/preview-panel';
 import { HistorySidebar } from '@/components/studio/history-sidebar';
@@ -24,6 +24,8 @@ export default function StudioPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [inputImageUrl, setInputImageUrl] = useState('');
   const [inputImageFile, setInputImageFile] = useState<File | null>(null);
+  const [videoQuality, setVideoQuality] = useState('720p');
+  const [videoDuration, setVideoDuration] = useState(5);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -65,16 +67,27 @@ export default function StudioPage() {
         
         body = formData;
         // Don't set Content-Type for FormData, browser will set it with boundary
+      } else if (activeTab === 'video') {
+        // For video, use FormData to support image upload
+        const formData = new FormData();
+        formData.append('prompt', prompt);
+        formData.append('aspectRatio', resolution);
+        formData.append('quality', videoQuality);
+        formData.append('duration', videoDuration.toString());
+        
+        if (inputImageFile) {
+          formData.append('image', inputImageFile);
+        } else if (inputImageUrl) {
+          formData.append('imageUrl', inputImageUrl);
+        }
+        
+        body = formData;
       } else {
-        // For image and video, use JSON
+        // For image, use JSON
         const jsonBody: Record<string, unknown> = {
           prompt,
           resolution,
         };
-        
-        if (activeTab === 'video' && inputImageUrl) {
-          jsonBody.imageUrl = inputImageUrl;
-        }
         
         body = JSON.stringify(jsonBody);
         headers['Content-Type'] = 'application/json';
@@ -190,25 +203,51 @@ export default function StudioPage() {
                   </div>
                 )}
                 {activeTab === 'video' && (
-                  <div className="sm:col-span-2">
-                    <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                      Input Image (Optional)
-                    </label>
-                    <ImageUpload
-                      value={inputImageUrl}
-                      onChange={(url, file) => {
-                        setInputImageUrl(url);
-                        if (file) setInputImageFile(file);
-                      }}
-                      onClear={() => {
-                        setInputImageUrl('');
-                        setInputImageFile(null);
-                      }}
-                    />
-                    <p className="mt-1.5 text-xs text-text-secondary">
-                      Upload an image to generate video from it, or leave empty for text-to-video
-                    </p>
-                  </div>
+                  <>
+                    <div>
+                      <VideoQualitySelector
+                        value={videoQuality}
+                        onChange={setVideoQuality}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-text-secondary">
+                        Duration (seconds)
+                      </label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="15"
+                        value={videoDuration}
+                        onChange={(e) => setVideoDuration(parseInt(e.target.value))}
+                        className="w-full"
+                      />
+                      <div className="flex justify-between text-xs text-text-secondary mt-1">
+                        <span>1s</span>
+                        <span className="font-medium text-text-primary">{videoDuration}s</span>
+                        <span>15s</span>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1.5 block text-sm font-medium text-text-secondary">
+                        Input Image (Optional)
+                      </label>
+                      <ImageUpload
+                        value={inputImageUrl}
+                        onChange={(url, file) => {
+                          setInputImageUrl(url);
+                          if (file) setInputImageFile(file);
+                        }}
+                        onClear={() => {
+                          setInputImageUrl('');
+                          setInputImageFile(null);
+                        }}
+                      />
+                      <p className="mt-1.5 text-xs text-text-secondary">
+                        Upload an image to generate video from it, or leave empty for text-to-video
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
             </CardContent>

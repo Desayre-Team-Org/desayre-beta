@@ -34,10 +34,20 @@ const resolutionOptions = [
   { value: '21:9', label: '21:9 (Ultrawide)' },
 ];
 
-const videoResolutionOptions = [
-  { value: '576x320', label: '576x320 (Fast)' },
-  { value: '768x432', label: '768x432' },
-  { value: '1024x576', label: '1024x576 (HD)' },
+// xAI Grok Imagine Video aspect ratios and resolutions
+const videoAspectRatioOptions = [
+  { value: '16:9', label: '16:9 (Widescreen)' },
+  { value: '4:3', label: '4:3 (Standard)' },
+  { value: '1:1', label: '1:1 (Square)' },
+  { value: '9:16', label: '9:16 (Portrait)' },
+  { value: '3:4', label: '3:4 (Portrait)' },
+  { value: '3:2', label: '3:2 (Landscape)' },
+  { value: '2:3', label: '2:3 (Portrait)' },
+];
+
+const videoQualityOptions = [
+  { value: '720p', label: '720p (HD)' },
+  { value: '480p', label: '480p (Fast)' },
 ];
 
 export function ModelSelector({ value, onChange, type = 'image' }: ModelSelectorProps) {
@@ -60,14 +70,31 @@ export function ResolutionSelector({
   onChange: (value: string) => void;
   type?: 'image' | 'edit' | 'video';
 }) {
-  const options = type === 'video' ? videoResolutionOptions : resolutionOptions;
+  const options = type === 'video' ? videoAspectRatioOptions : resolutionOptions;
 
   return (
     <Select
-      label="Resolution"
+      label={type === 'video' ? 'Aspect Ratio' : 'Resolution'}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       options={options}
+    />
+  );
+}
+
+export function VideoQualitySelector({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select
+      label="Quality"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      options={videoQualityOptions}
     />
   );
 }

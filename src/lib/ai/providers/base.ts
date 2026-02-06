@@ -27,7 +27,8 @@ export abstract class BaseProvider {
   abstract generateVideo(
     config: ModelConfig,
     prompt: EnhancedPrompt,
-    imageUrl?: string
+    imageUrl?: string,
+    options?: Record<string, unknown>
   ): Promise<GenerationResult>;
 
   protected async fetchWithTimeout(

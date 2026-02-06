@@ -14,7 +14,9 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('image') as File | null;
     const prompt = formData.get('prompt') as string;
-    const resolution = formData.get('resolution') as string | null;
+    const aspectRatio = formData.get('aspectRatio') as string | null;
+    const quality = formData.get('quality') as string | null;
+    const duration = formData.get('duration') as string | null;
     const providedImageUrl = formData.get('imageUrl') as string | null;
 
     if (!prompt) {
@@ -40,9 +42,15 @@ export async function POST(request: NextRequest) {
     // Route to model
     const modelConfig = aiRouter.route({
       type: 'video',
-      resolution: resolution || undefined,
+      resolution: aspectRatio || undefined,
       priority: 'quality',
     });
+
+    // Add video-specific parameters
+    const videoParams: Record<string, unknown> = {};
+    if (aspectRatio) videoParams.aspect_ratio = aspectRatio;
+    if (quality) videoParams.resolution = quality;
+    if (duration) videoParams.duration = parseInt(duration);
 
     // Create generation record
     const [generation] = await db
@@ -55,14 +63,14 @@ export async function POST(request: NextRequest) {
         enhancedPrompt: enhancedPrompt.enhanced,
         modelUsed: modelConfig.model,
         provider: modelConfig.provider,
-        resolution: resolution || undefined,
+        resolution: aspectRatio || undefined,
         inputImageUrl: imageUrl || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
       })
       .returning();
 
     // Generate video (async with polling)
-    const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl || undefined);
+    const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl || undefined, videoParams);
 
     if (!result.success || !result.url) {
       await db

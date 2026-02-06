@@ -42,8 +42,9 @@ export async function editImage(
 export async function generateVideo(
   config: ModelConfig,
   prompt: EnhancedPrompt,
-  imageUrl?: string
+  imageUrl?: string,
+  options?: Record<string, unknown>
 ) {
   const provider = getProvider(config.provider);
-  return provider.generateVideo(config, prompt, imageUrl);
+  return provider.generateVideo(config, prompt, imageUrl, options);
 }
