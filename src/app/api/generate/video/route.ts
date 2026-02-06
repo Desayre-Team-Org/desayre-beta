@@ -69,10 +69,15 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    console.log('[VIDEO] Starting video generation with config:', modelConfig.model);
+    
     // Generate video (async with polling)
     const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl || undefined, videoParams);
+    
+    console.log('[VIDEO] Generation result:', JSON.stringify(result, null, 2));
 
     if (!result.success || !result.url) {
+      console.error('[VIDEO] Generation failed:', result.error);
       await db
         .update(generations)
         .set({
@@ -87,8 +92,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[VIDEO] Video URL received:', result.url);
+
     // Upload to storage
+    console.log('[VIDEO] Uploading to R2 storage...');
     const upload = await storage.uploadFromUrl(result.url, 'videos');
+    console.log('[VIDEO] Upload complete:', upload.publicUrl);
 
     // Update generation record
     await db
@@ -110,7 +119,11 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Video generation error:', error);
+    console.error('[VIDEO] Caught error:', error);
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : '';
+    console.error('[VIDEO] Error details:', { message: errorMessage, stack: errorStack });
 
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json(
@@ -120,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { success: false, error: `Internal server error: ${errorMessage}` },
       { status: 500 }
     );
   }

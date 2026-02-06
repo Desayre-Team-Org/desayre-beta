@@ -29,18 +29,27 @@ export class StorageService {
     folder: 'images' | 'videos' = 'images'
   ): Promise<UploadResult> {
     try {
+      console.log(`[STORAGE] Fetching from URL: ${sourceUrl}`);
+      
       // Fetch the file from source URL
       const response = await fetch(sourceUrl);
       
+      console.log(`[STORAGE] Fetch response status: ${response.status}`);
+      
       if (!response.ok) {
-        throw new Error(`Failed to fetch from URL: ${response.statusText}`);
+        throw new Error(`Failed to fetch from URL: ${response.status} ${response.statusText}`);
       }
 
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      const contentLength = response.headers.get('content-length');
+      console.log(`[STORAGE] Content-Type: ${contentType}, Content-Length: ${contentLength}`);
+      
       const buffer = await response.arrayBuffer();
+      console.log(`[STORAGE] Downloaded ${buffer.byteLength} bytes`);
       
       return this.uploadBuffer(Buffer.from(buffer), folder, contentType);
     } catch (error) {
+      console.error(`[STORAGE] Upload from URL failed:`, error);
       throw new Error(`Upload from URL failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }

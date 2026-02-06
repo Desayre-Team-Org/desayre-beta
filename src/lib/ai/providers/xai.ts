@@ -65,11 +65,14 @@ export class XAIProvider extends BaseProvider {
       }
 
       const data = await response.json();
-      console.log('xAI video generation started:', data);
+      console.log('xAI video generation response:', JSON.stringify(data, null, 2));
 
       if (!data.request_id) {
-        throw new Error('No request_id in response');
+        console.error('No request_id in xAI response:', data);
+        throw new Error(`No request_id in response: ${JSON.stringify(data)}`);
       }
+
+      console.log('Got request_id:', data.request_id);
 
       // Poll for result
       return this.pollForVideoResult(data.request_id, apiKey);
@@ -87,7 +90,7 @@ export class XAIProvider extends BaseProvider {
     const pollUrl = `https://api.x.ai/v1/videos/${encodeURIComponent(requestId)}`;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`Polling for video result, attempt ${attempt + 1}/${maxAttempts}, requestId: ${requestId}`);
+      console.log(`[POLL] Attempt ${attempt + 1}/${maxAttempts}, requestId: ${requestId}`);
 
       await new Promise(resolve => setTimeout(resolve, delayMs));
 
@@ -99,15 +102,20 @@ export class XAIProvider extends BaseProvider {
           },
         });
 
+        console.log(`[POLL] Response status: ${response.status}`);
+
         if (!response.ok) {
-          console.error('Poll response not OK:', response.status);
+          const errorText = await response.text();
+          console.error(`[POLL] Response not OK: ${response.status}, body: ${errorText}`);
           continue;
         }
 
         const data = await response.json();
-        console.log('Poll response:', JSON.stringify(data).slice(0, 200));
+        console.log(`[POLL] Response data:`, JSON.stringify(data, null, 2));
+        console.log(`[POLL] Status: ${data.status}, URL: ${data.url ? 'present' : 'missing'}`);
 
         if (data.status === 'completed' && data.url) {
+          console.log(`[POLL] Video completed! URL: ${data.url}`);
           return {
             success: true,
             url: data.url,
@@ -118,17 +126,20 @@ export class XAIProvider extends BaseProvider {
             },
           };
         } else if (data.status === 'failed') {
+          console.error(`[POLL] Video generation failed:`, data.error);
           return {
             success: false,
             error: `Video generation failed: ${data.error || 'Unknown error'}`,
           };
+        } else {
+          console.log(`[POLL] Status is '${data.status}', continuing polling...`);
         }
-        // If still processing, continue polling
       } catch (error) {
-        console.error('Poll error:', error);
+        console.error('[POLL] Error during polling:', error);
       }
     }
 
+    console.error(`[POLL] Timeout after ${maxAttempts} attempts`);
     return {
       success: false,
       error: 'Timeout waiting for video generation',
