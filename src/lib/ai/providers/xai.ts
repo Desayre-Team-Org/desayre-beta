@@ -10,7 +10,7 @@ export class XAIProvider extends BaseProvider {
     prompt: EnhancedPrompt,
     options?: Record<string, unknown>
   ): Promise<GenerationResult> {
-    throw new Error('Image generation not supported by xAI provider. Use Grok Imagine Video for video generation.');
+    throw new Error('Image generation not supported by xAI provider. Use ModelsLabs for images.');
   }
 
   async edit(
@@ -19,117 +19,130 @@ export class XAIProvider extends BaseProvider {
     imageUrl: string,
     instructions?: string
   ): Promise<GenerationResult> {
-    throw new Error('Image editing not supported by xAI provider');
+    throw new Error('Image editing not supported by xAI provider. Use ModelsLabs for image editing.');
   }
 
   async generateVideo(
     config: ModelConfig,
     prompt: EnhancedPrompt,
-    imageUrl: string
+    imageUrl?: string,
+    videoUrl?: string
   ): Promise<GenerationResult> {
     try {
-      const payload = {
-        image_url: imageUrl,
-        prompt: prompt.enhanced,
-        duration: config.parameters.duration || 5,
-        fps: config.parameters.fps || 24,
-        motion_bucket_id: config.parameters.motion_bucket_id || 127,
+      const apiKey = this.getApiKey(config.headers);
+
+      // Start video generation
+      const payload: Record<string, unknown> = {
         model: config.model,
+        prompt: prompt.enhanced,
       };
+
+      if (imageUrl) {
+        payload.image_url = imageUrl;
+      }
+
+      if (videoUrl) {
+        payload.video_url = videoUrl;
+      }
+
+      console.log('Starting xAI video generation:', payload);
 
       const response = await this.fetchWithTimeout(
         config.endpoint,
         {
           method: 'POST',
-          headers: config.headers,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
           body: JSON.stringify(payload),
         },
-        300000 // 5 minute timeout for video
+        30000 // 30s timeout for initial request
       );
 
       if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`xAI API error: ${error}`);
+        const errorText = await response.text();
+        console.error('xAI API error:', response.status, errorText);
+        throw new Error(`xAI API error ${response.status}: ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('xAI video generation started:', data);
 
-      // Poll for result if async
-      if (data.job_id) {
-        return await this.pollVideoResult(config, data.job_id);
+      if (!data.request_id) {
+        throw new Error('No request_id in response');
       }
 
-      let videoUrl: string | undefined;
-      
-      if (data.video_url) {
-        videoUrl = data.video_url;
-      } else if (data.output && data.output.video_url) {
-        videoUrl = data.output.video_url;
-      }
-
-      if (!videoUrl) {
-        throw new Error('No video URL in response');
-      }
-
-      return {
-        success: true,
-        url: videoUrl,
-        metadata: {
-          duration: data.duration,
-          fps: data.fps,
-          modelUsed: config.model,
-        },
-      };
+      // Poll for result
+      return this.pollForVideoResult(data.request_id, apiKey);
     } catch (error) {
       return this.handleError(error);
     }
   }
 
-  private async pollVideoResult(
-    config: ModelConfig,
-    jobId: string,
-    maxAttempts: number = 30
+  private async pollForVideoResult(
+    requestId: string,
+    apiKey: string,
+    maxAttempts: number = 60,
+    delayMs: number = 5000
   ): Promise<GenerationResult> {
-    const pollEndpoint = config.endpoint.replace('/generations', `/jobs/${jobId}`);
-    
+    const pollUrl = 'https://api.x.ai/v1/video/result';
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      console.log(`Polling for video result, attempt ${attempt + 1}/${maxAttempts}`);
+
+      await new Promise(resolve => setTimeout(resolve, delayMs));
 
       try {
-        const response = await fetch(pollEndpoint, {
-          method: 'GET',
-          headers: config.headers,
+        const response = await fetch(pollUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({ request_id: requestId }),
         });
 
         if (!response.ok) {
+          console.error('Poll response not OK:', response.status);
           continue;
         }
 
         const data = await response.json();
+        console.log('Poll response:', JSON.stringify(data).slice(0, 200));
 
-        if (data.status === 'completed' && data.video_url) {
+        if (data.status === 'completed' && data.url) {
           return {
             success: true,
-            url: data.video_url,
+            url: data.url,
             metadata: {
+              requestId,
               duration: data.duration,
               fps: data.fps,
-              modelUsed: config.model,
             },
           };
+        } else if (data.status === 'failed') {
+          return {
+            success: false,
+            error: `Video generation failed: ${data.error || 'Unknown error'}`,
+          };
         }
-
-        if (data.status === 'failed') {
-          throw new Error(`Video generation failed: ${data.error || 'Unknown error'}`);
-        }
+        // If still processing, continue polling
       } catch (error) {
-        if (attempt === maxAttempts - 1) {
-          throw error;
-        }
+        console.error('Poll error:', error);
       }
     }
 
-    throw new Error('Video generation timed out');
+    return {
+      success: false,
+      error: 'Timeout waiting for video generation',
+    };
+  }
+
+  // Extract API key from Authorization header
+  private getApiKey(headers: Record<string, string>): string {
+    const auth = headers['Authorization'] || '';
+    return auth.replace('Bearer ', '');
   }
 }
 

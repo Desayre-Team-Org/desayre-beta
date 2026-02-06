@@ -190,17 +190,24 @@ export default function StudioPage() {
                   </div>
                 )}
                 {activeTab === 'video' && (
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                      Input Image URL
+                      Input Image (Optional)
                     </label>
-                    <input
-                      type="url"
+                    <ImageUpload
                       value={inputImageUrl}
-                      onChange={(e) => setInputImageUrl(e.target.value)}
-                      placeholder="https://..."
-                      className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder:text-text-secondary/50 focus:border-accent focus:outline-none"
+                      onChange={(url, file) => {
+                        setInputImageUrl(url);
+                        if (file) setInputImageFile(file);
+                      }}
+                      onClear={() => {
+                        setInputImageUrl('');
+                        setInputImageFile(null);
+                      }}
                     />
+                    <p className="mt-1.5 text-xs text-text-secondary">
+                      Upload an image to generate video from it, or leave empty for text-to-video
+                    </p>
                   </div>
                 )}
               </div>

@@ -1,40 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { db, generations, sql } from '@/lib/db';
+import { db, generations } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth';
 import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { generateVideo } from '@/lib/ai/providers';
-import { generationQueue } from '@/lib/queue';
 import { storage } from '@/lib/storage';
-
-
-const requestSchema = z.object({
-  imageUrl: z.string().url(),
-  prompt: z.string().min(1).max(400),
-  resolution: z.enum(['576x320', '768x432', '1024x576']).optional(),
-  duration: z.number().min(3).max(10).optional(),
-  async: z.boolean().optional().default(false),
-});
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate
     const session = await requireAuth(request);
 
-    // Parse and validate request
-    const body = await request.json();
-    const validation = requestSchema.safeParse(body);
+    const formData = await request.formData();
+    const file = formData.get('image') as File | null;
+    const prompt = formData.get('prompt') as string;
+    const resolution = formData.get('resolution') as string | null;
+    const providedImageUrl = formData.get('imageUrl') as string | null;
 
-    if (!validation.success) {
+    if (!prompt) {
       return NextResponse.json(
-        { success: false, error: 'Invalid request', details: validation.error.errors },
+        { success: false, error: 'Prompt is required' },
         { status: 400 }
       );
     }
 
-    const { imageUrl, prompt, resolution, duration, async: isAsync } = validation.data;
+    // Handle image upload or URL
+    let imageUrl = providedImageUrl;
+
+    if (file) {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const upload = await storage.uploadBuffer(buffer, 'images', file.type);
+      imageUrl = upload.publicUrl;
+    }
 
     // Encode prompt for video
     const encoder = createPromptEncoder('video', { style: 'cinematic', quality: 'high' });
@@ -43,14 +40,9 @@ export async function POST(request: NextRequest) {
     // Route to model
     const modelConfig = aiRouter.route({
       type: 'video',
-      resolution,
+      resolution: resolution || undefined,
       priority: 'quality',
     });
-
-    // Override duration if specified
-    if (duration) {
-      modelConfig.parameters.duration = duration;
-    }
 
     // Create generation record
     const [generation] = await db
@@ -58,42 +50,19 @@ export async function POST(request: NextRequest) {
       .values({
         userId: session.userId,
         type: 'video',
-        status: isAsync ? 'pending' : 'processing',
+        status: 'processing',
         prompt,
         enhancedPrompt: enhancedPrompt.enhanced,
         modelUsed: modelConfig.model,
         provider: modelConfig.provider,
-        resolution,
-        inputImageUrl: imageUrl,
+        resolution: resolution || undefined,
+        inputImageUrl: imageUrl || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
       })
       .returning();
 
-    if (isAsync) {
-      // Add to queue with lower priority (higher score) as video takes longer
-      await generationQueue.enqueue('video', {
-        generationId: generation.id,
-        prompt,
-        enhancedPrompt: enhancedPrompt.enhanced,
-        modelConfig,
-        resolution,
-        inputImageUrl: imageUrl,
-        userId: session.userId,
-      }, 5); // Higher priority value = lower actual priority
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          generationId: generation.id,
-          status: 'pending',
-          message: 'Video generation queued',
-          estimatedTime: aiRouter.estimateTime(modelConfig.model),
-        },
-      });
-    }
-
-    // Synchronous generation (not recommended for video due to long processing time)
-    const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl);
+    // Generate video (async with polling)
+    const result = await generateVideo(modelConfig, enhancedPrompt, imageUrl || undefined);
 
     if (!result.success || !result.url) {
       await db
@@ -134,7 +103,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Video generation error:', error);
-    
+
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
