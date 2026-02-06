@@ -84,7 +84,7 @@ export class XAIProvider extends BaseProvider {
     maxAttempts: number = 60,
     delayMs: number = 5000
   ): Promise<GenerationResult> {
-    const pollUrl = `https://api.x.ai/v1/video/result?request_id=${encodeURIComponent(requestId)}`;
+    const pollUrl = `https://api.x.ai/v1/videos/${encodeURIComponent(requestId)}`;
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       console.log(`Polling for video result, attempt ${attempt + 1}/${maxAttempts}, requestId: ${requestId}`);
