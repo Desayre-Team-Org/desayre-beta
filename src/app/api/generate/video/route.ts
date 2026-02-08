@@ -106,6 +106,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (referencePublicUrls.length > 0) {
+      imageUrl = imageUrl || referencePublicUrls[0];
+    }
+    if (referenceSignedUrls.length > 0) {
+      imageUrlForXai = imageUrlForXai || referenceSignedUrls[0];
+    }
+
     // Encode prompt for video
     // When image is provided, use original prompt to preserve fidelity to the reference image
     const encoder = createPromptEncoder('video', { style: 'cinematic', quality: 'high' });
@@ -142,6 +149,12 @@ export async function POST(request: NextRequest) {
     if (modelConfig.provider === 'higgsfield' && referenceSignedUrls.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Higgsfield Soul requires at least one reference image.' },
+        { status: 400 }
+      );
+    }
+    if (modelConfig.provider === 'xai' && !imageUrlForXai) {
+      return NextResponse.json(
+        { success: false, error: 'xAI video requires a reference image.' },
         { status: 400 }
       );
     }
