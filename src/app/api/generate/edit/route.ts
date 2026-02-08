@@ -11,12 +11,29 @@ export async function POST(request: NextRequest) {
   try {
     const session = await requireAuth(request);
 
-    const formData = await request.formData();
-    const file = formData.get('image') as File | null;
-    const prompt = formData.get('prompt') as string;
-    const instructions = formData.get('instructions') as string | null;
-    const resolution = formData.get('resolution') as string | null;
-    const providedImageUrl = formData.get('imageUrl') as string | null;
+    const contentType = request.headers.get('content-type') || '';
+    let file: File | null = null;
+    let prompt: string | undefined;
+    let instructions: string | null = null;
+    let resolution: string | null = null;
+    let providedImageUrl: string | null = null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await request.formData();
+      file = formData.get('image') as File | null;
+      prompt = formData.get('prompt') as string;
+      instructions = formData.get('instructions') as string | null;
+      resolution = formData.get('resolution') as string | null;
+      providedImageUrl = formData.get('imageUrl') as string | null;
+    } else {
+      const body = await request.json().catch(() => null);
+      if (body && typeof body === 'object') {
+        prompt = typeof body.prompt === 'string' ? body.prompt : undefined;
+        instructions = typeof body.instructions === 'string' ? body.instructions : null;
+        resolution = typeof body.resolution === 'string' ? body.resolution : null;
+        providedImageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : null;
+      }
+    }
 
     if (!prompt) {
       return NextResponse.json(
