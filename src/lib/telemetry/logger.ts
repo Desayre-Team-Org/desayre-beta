@@ -1,4 +1,5 @@
-import { appendFile } from 'fs/promises';
+import { appendFile, rename, stat, mkdir } from 'fs/promises';
+import { dirname, resolve } from 'path';
 
 type TelemetryLevel = 'info' | 'warn' | 'error';
 type TelemetrySource = 'client' | 'server';
@@ -26,6 +27,7 @@ const REDACT_KEYS = [
 ];
 
 const MAX_PAYLOAD_CHARS = 50_000;
+const DEFAULT_MAX_BYTES = 5 * 1024 * 1024;
 
 function shouldRedact(key: string): boolean {
   const normalized = key.toLowerCase();
@@ -58,6 +60,23 @@ function clampPayload(payload?: Record<string, unknown>): Record<string, unknown
   };
 }
 
+async function rotateIfNeeded(logPath: string): Promise<void> {
+  const maxBytes = Number.parseInt(process.env.TELEMETRY_MAX_BYTES || '', 10) || DEFAULT_MAX_BYTES;
+  try {
+    const info = await stat(logPath);
+    if (info.size < maxBytes) return;
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const rotatedPath = `${logPath}.${stamp}`;
+    await rename(logPath, rotatedPath);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error) {
+      if ((error as { code?: string }).code === 'ENOENT') return;
+    }
+    throw error;
+  }
+}
+
 export async function logTelemetry(event: TelemetryEvent): Promise<void> {
   const payload = clampPayload(event.payload);
   const line = JSON.stringify({
@@ -65,8 +84,16 @@ export async function logTelemetry(event: TelemetryEvent): Promise<void> {
     payload,
   }) + '\n';
 
-  const logPath = process.env.TELEMETRY_LOG_PATH;
+  const enabled = process.env.TELEMETRY_ENABLED === '1';
+  const logPath = process.env.TELEMETRY_LOG_PATH
+    ? resolve(process.env.TELEMETRY_LOG_PATH)
+    : enabled
+      ? resolve(process.cwd(), 'telemetry.jsonl')
+      : undefined;
+
   if (logPath) {
+    await mkdir(dirname(logPath), { recursive: true });
+    await rotateIfNeeded(logPath);
     await appendFile(logPath, line);
     return;
   }
