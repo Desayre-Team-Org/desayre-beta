@@ -114,7 +114,12 @@ export function ClientTelemetry() {
       const start = performance.now();
       const response = await originalFetch(input, init);
       const durationMs = Math.round(performance.now() - start);
-      const url = typeof input === 'string' ? input : input.url;
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
 
       if (!url.includes('/api/telemetry')) {
         enqueue({
