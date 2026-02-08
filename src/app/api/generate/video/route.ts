@@ -194,10 +194,19 @@ export async function POST(request: NextRequest) {
       .returning();
 
     if (modelConfig.provider === 'xai' && imageUrlForXai) {
+      let probeStatus: number | undefined;
+      let probeContentType: string | null | undefined;
+      let probeContentLength: string | null | undefined;
       try {
         const head = await fetch(imageUrlForXai, { method: 'HEAD' });
+        probeStatus = head.status;
+        probeContentType = head.headers.get('content-type');
+        probeContentLength = head.headers.get('content-length');
         if (!head.ok) {
           const get = await fetch(imageUrlForXai, { method: 'GET' });
+          probeStatus = get.status;
+          probeContentType = probeContentType || get.headers.get('content-type');
+          probeContentLength = probeContentLength || get.headers.get('content-length');
           get.body?.cancel();
           if (!get.ok) {
             return NextResponse.json(
@@ -212,6 +221,21 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      const metadata = generation.metadata as Record<string, unknown> | null;
+      await db
+        .update(generations)
+        .set({
+          metadata: {
+            ...(metadata || {}),
+            xaiImageProbe: {
+              status: probeStatus,
+              contentType: probeContentType,
+              contentLength: probeContentLength,
+            },
+          },
+        })
+        .where(eq(generations.id, generation.id));
     }
 
     console.log('[VIDEO] Starting video generation with config:', modelConfig.model);
