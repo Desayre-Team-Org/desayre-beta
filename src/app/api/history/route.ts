@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
         outputUrl: generations.outputUrl,
         inputImageUrl: generations.inputImageUrl,
         costEstimate: generations.costEstimate,
+        metadata: generations.metadata,
         createdAt: generations.createdAt,
         completedAt: generations.completedAt,
       })

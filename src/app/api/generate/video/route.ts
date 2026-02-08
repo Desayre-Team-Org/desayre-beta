@@ -187,7 +187,9 @@ export async function POST(request: NextRequest) {
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
         metadata: referencePublicUrls.length > 0
           ? { referenceImages: referencePublicUrls, xaiImageUrl: imageUrlForXai }
-          : undefined,
+          : modelConfig.provider === 'xai' && imageUrlForXai
+            ? { xaiImageUrl: imageUrlForXai }
+            : undefined,
       })
       .returning();
 
@@ -318,6 +320,7 @@ export async function POST(request: NextRequest) {
         generationId: generation.id,
         status: 'completed',
         url: upload.publicUrl,
+        xaiImageUrl: finalProvider === 'xai' ? imageUrlForXai : undefined,
       },
     });
   } catch (error) {
