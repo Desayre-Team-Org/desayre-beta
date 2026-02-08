@@ -92,10 +92,23 @@ export async function logTelemetry(event: TelemetryEvent): Promise<void> {
       : undefined;
 
   if (logPath) {
-    await mkdir(dirname(logPath), { recursive: true });
-    await rotateIfNeeded(logPath);
-    await appendFile(logPath, line);
-    return;
+    try {
+      await mkdir(dirname(logPath), { recursive: true });
+      await rotateIfNeeded(logPath);
+      await appendFile(logPath, line);
+      return;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        (error as { code?: string }).code === 'EROFS'
+      ) {
+        console.warn(`[telemetry] Read-only filesystem at ${logPath}. Falling back to stdout.`);
+      } else {
+        console.warn('[telemetry] Failed to write log file. Falling back to stdout.', error);
+      }
+    }
   }
 
   console.log(line.trim());
