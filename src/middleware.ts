@@ -6,7 +6,7 @@ import { verifyToken } from './lib/auth';
 const PUBLIC_ROUTES = ['/login', '/api/auth/login'];
 
 // API routes that are public
-const PUBLIC_API_ROUTES = ['/api/auth/login'];
+const PUBLIC_API_ROUTES = ['/api/auth/login', '/api/telemetry'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

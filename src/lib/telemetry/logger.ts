@@ -84,12 +84,9 @@ export async function logTelemetry(event: TelemetryEvent): Promise<void> {
     payload,
   }) + '\n';
 
-  const enabled = process.env.TELEMETRY_ENABLED === '1';
   const logPath = process.env.TELEMETRY_LOG_PATH
     ? resolve(process.env.TELEMETRY_LOG_PATH)
-    : enabled
-      ? resolve(process.cwd(), 'telemetry.jsonl')
-      : undefined;
+    : undefined;
 
   if (logPath) {
     try {
