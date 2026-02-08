@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ClientTelemetry } from '@/components/telemetry/client-telemetry';
 
 export const metadata: Metadata = {
   title: 'DESAYRE | AI Generation Platform',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased">
+        <ClientTelemetry />
+        {children}
+      </body>
     </html>
   );
 }
