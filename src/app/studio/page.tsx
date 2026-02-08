@@ -29,6 +29,7 @@ export default function StudioPage() {
   const [videoDuration, setVideoDuration] = useState(5);
   const [videoModel, setVideoModel] = useState('grok-imagine-video');
   const [referenceImages, setReferenceImages] = useState<ReferenceImageItem[]>([]);
+  const [editStrength, setEditStrength] = useState(0.35);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -56,6 +57,7 @@ export default function StudioPage() {
         const formData = new FormData();
         formData.append('prompt', prompt);
         formData.append('resolution', resolution);
+        formData.append('strength', editStrength.toString());
         
         if (inputImageFile) {
           formData.append('image', inputImageFile);
@@ -137,6 +139,7 @@ export default function StudioPage() {
     videoDuration,
     videoModel,
     referenceImages,
+    editStrength,
   ]);
 
   const tabs = [
@@ -225,6 +228,27 @@ export default function StudioPage() {
                     <p className="mt-1.5 text-xs text-text-secondary">
                       Drag & drop or click to upload PNG, JPG, WEBP
                     </p>
+                  </div>
+                )}
+                {activeTab === 'edit' && (
+                  <div className="sm:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-text-secondary">
+                      Edit Strength
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="1"
+                      step="0.05"
+                      value={editStrength}
+                      onChange={(e) => setEditStrength(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-text-secondary mt-1">
+                      <span>More faithful</span>
+                      <span className="font-medium text-text-primary">{editStrength.toFixed(2)}</span>
+                      <span>More creative</span>
+                    </div>
                   </div>
                 )}
                 {activeTab === 'video' && (

@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
     let prompt: string | undefined;
     let instructions: string | null = null;
     let resolution: string | null = null;
+    let strength: number | null = null;
     let providedImageUrl: string | null = null;
 
     if (contentType.includes('multipart/form-data')) {
@@ -24,6 +25,11 @@ export async function POST(request: NextRequest) {
       prompt = formData.get('prompt') as string;
       instructions = formData.get('instructions') as string | null;
       resolution = formData.get('resolution') as string | null;
+      const strengthValue = formData.get('strength');
+      if (typeof strengthValue === 'string') {
+        const parsed = Number.parseFloat(strengthValue);
+        strength = Number.isFinite(parsed) ? parsed : null;
+      }
       providedImageUrl = formData.get('imageUrl') as string | null;
     } else {
       const body = await request.json().catch(() => null);
@@ -31,6 +37,9 @@ export async function POST(request: NextRequest) {
         prompt = typeof body.prompt === 'string' ? body.prompt : undefined;
         instructions = typeof body.instructions === 'string' ? body.instructions : null;
         resolution = typeof body.resolution === 'string' ? body.resolution : null;
+        if (typeof body.strength === 'number') {
+          strength = Number.isFinite(body.strength) ? body.strength : null;
+        }
         providedImageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : null;
       }
     }
@@ -65,6 +74,13 @@ export async function POST(request: NextRequest) {
       resolution: resolution || undefined,
       priority: 'quality',
     });
+    if (strength !== null) {
+      const clamped = Math.max(0, Math.min(1, strength));
+      modelConfig.parameters = {
+        ...modelConfig.parameters,
+        strength: clamped,
+      };
+    }
 
     const [generation] = await db
       .insert(generations)

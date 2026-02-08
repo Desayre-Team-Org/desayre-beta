@@ -50,7 +50,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     parameters: {
       num_inference_steps: 35,
       guidance_scale: 8.0,
-      strength: 0.75,
+      strength: 0.35,
     },
   },
   'grok-imagine-video': {
