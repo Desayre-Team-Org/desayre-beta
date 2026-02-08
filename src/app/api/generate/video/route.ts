@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const preferPublicForXai = !!process.env.R2_PUBLIC_URL;
-    const supportedAspectRatios = ['16:9', '4:3', '1:1', '9:16', '3:4', '3:2', '2:3'] as const;
+    const supportedAspectRatios = ['16:9', '4:3', '1:1', '9:16', '3:4', '3:2', '2:3'];
 
     const pickClosestAspectRatio = (width: number, height: number) => {
       const ratio = width / height;
