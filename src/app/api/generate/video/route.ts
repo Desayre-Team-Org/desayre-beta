@@ -29,26 +29,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const preferPublicForXai = !!process.env.R2_PUBLIC_URL;
+
     const uploadFromFile = async (fileToUpload: File) => {
       const buffer = Buffer.from(await fileToUpload.arrayBuffer());
       const upload = await storage.uploadBuffer(buffer, 'images', fileToUpload.type);
       const signedUrl = await storage.getSignedDownloadUrl(upload.key);
-      return { publicUrl: upload.publicUrl, signedUrl };
+      const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
+      return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
     };
 
     const uploadFromUrl = async (url: string) => {
       if (url.startsWith('data:')) {
         const upload = await storage.uploadBase64(url, 'images');
         const signedUrl = await storage.getSignedDownloadUrl(upload.key);
-        return { publicUrl: upload.publicUrl, signedUrl };
+        const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
+        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
       }
 
       try {
         const upload = await storage.uploadFromUrl(url, 'images');
         const signedUrl = await storage.getSignedDownloadUrl(upload.key);
-        return { publicUrl: upload.publicUrl, signedUrl };
+        const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
+        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
       } catch {
-        return { publicUrl: url, signedUrl: url };
+        return { publicUrl: url, signedUrl: url, xaiUrl: url };
       }
     };
 
@@ -61,14 +66,14 @@ export async function POST(request: NextRequest) {
     if (file) {
       const upload = await uploadFromFile(file);
       imageUrl = upload.publicUrl;
-      imageUrlForXai = upload.signedUrl;
-      referenceSignedUrls.push(upload.signedUrl);
+      imageUrlForXai = upload.xaiUrl;
+      referenceSignedUrls.push(upload.xaiUrl);
       referencePublicUrls.push(upload.publicUrl);
     } else if (providedImageUrl) {
       const upload = await uploadFromUrl(providedImageUrl);
       imageUrl = upload.publicUrl;
-      imageUrlForXai = upload.signedUrl;
-      referenceSignedUrls.push(upload.signedUrl);
+      imageUrlForXai = upload.xaiUrl;
+      referenceSignedUrls.push(upload.xaiUrl);
       referencePublicUrls.push(upload.publicUrl);
     }
 
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
           for (const url of parsed) {
             if (typeof url === 'string' && url.trim()) {
               const upload = await uploadFromUrl(url);
-              referenceSignedUrls.push(upload.signedUrl);
+              referenceSignedUrls.push(upload.xaiUrl);
               referencePublicUrls.push(upload.publicUrl);
             }
           }
@@ -93,7 +98,7 @@ export async function POST(request: NextRequest) {
       for (const refFile of referenceFiles) {
         if (refFile && refFile.type?.startsWith('image/')) {
           const upload = await uploadFromFile(refFile);
-          referenceSignedUrls.push(upload.signedUrl);
+          referenceSignedUrls.push(upload.xaiUrl);
           referencePublicUrls.push(upload.publicUrl);
         }
       }
@@ -158,6 +163,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (modelConfig.provider === 'xai' && imageUrlForXai && !/^https?:\/\//i.test(imageUrlForXai)) {
+      return NextResponse.json(
+        { success: false, error: 'Reference image must be a public http(s) URL.' },
+        { status: 400 }
+      );
+    }
 
     // Create generation record
     const [generation] = await db
@@ -174,7 +185,9 @@ export async function POST(request: NextRequest) {
         duration: durationValue,
         inputImageUrl: imageUrl || referencePublicUrls[0] || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
-        metadata: referencePublicUrls.length > 0 ? { referenceImages: referencePublicUrls } : undefined,
+        metadata: referencePublicUrls.length > 0
+          ? { referenceImages: referencePublicUrls, xaiImageUrl: imageUrlForXai }
+          : undefined,
       })
       .returning();
 
