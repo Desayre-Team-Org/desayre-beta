@@ -6,6 +6,7 @@ import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { generateVideo } from '@/lib/ai/providers';
 import { storage } from '@/lib/storage';
+import imageSize from 'image-size';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('image') as File | null;
     const model = formData.get('model') as string | null;
     const prompt = formData.get('prompt') as string;
-    const aspectRatio = formData.get('aspectRatio') as string | null;
+    const requestedAspectRatio = formData.get('aspectRatio') as string | null;
     const quality = formData.get('quality') as string | null;
     const duration = formData.get('duration') as string | null;
     const providedImageUrl = formData.get('imageUrl') as string | null;
@@ -30,36 +31,79 @@ export async function POST(request: NextRequest) {
     }
 
     const preferPublicForXai = !!process.env.R2_PUBLIC_URL;
+    const supportedAspectRatios = ['16:9', '4:3', '1:1', '9:16', '3:4', '3:2', '2:3'] as const;
+
+    const pickClosestAspectRatio = (width: number, height: number) => {
+      const ratio = width / height;
+      let best = supportedAspectRatios[0];
+      let bestDelta = Number.POSITIVE_INFINITY;
+      for (const candidate of supportedAspectRatios) {
+        const [w, h] = candidate.split(':').map(Number);
+        const candidateRatio = w / h;
+        const delta = Math.abs(candidateRatio - ratio);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          best = candidate;
+        }
+      }
+      return best;
+    };
+
+    const getAspectRatioFromBuffer = (buffer: Buffer) => {
+      try {
+        const dimensions = imageSize(buffer);
+        if (!dimensions.width || !dimensions.height) return undefined;
+        return pickClosestAspectRatio(dimensions.width, dimensions.height);
+      } catch {
+        return undefined;
+      }
+    };
 
     const uploadFromFile = async (fileToUpload: File) => {
       const buffer = Buffer.from(await fileToUpload.arrayBuffer());
+      const detectedAspectRatio = getAspectRatioFromBuffer(buffer);
       const upload = await storage.uploadBuffer(buffer, 'images', fileToUpload.type);
       const signedUrl = await storage.getSignedDownloadUrl(upload.key);
       const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
-      return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
+      return { publicUrl: upload.publicUrl, signedUrl, xaiUrl, aspectRatio: detectedAspectRatio };
     };
 
     const uploadFromUrl = async (url: string) => {
       if (url.startsWith('data:')) {
-        const upload = await storage.uploadBase64(url, 'images');
+        const match = url.match(/^data:(.+?);base64,(.+)$/);
+        if (!match) {
+          return { publicUrl: url, signedUrl: url, xaiUrl: url, aspectRatio: undefined };
+        }
+        const contentType = match[1];
+        const buffer = Buffer.from(match[2], 'base64');
+        const detectedAspectRatio = getAspectRatioFromBuffer(buffer);
+        const upload = await storage.uploadBuffer(buffer, 'images', contentType);
         const signedUrl = await storage.getSignedDownloadUrl(upload.key);
         const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
-        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
+        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl, aspectRatio: detectedAspectRatio };
       }
 
       try {
-        const upload = await storage.uploadFromUrl(url, 'images');
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch reference image: ${response.status}`);
+        }
+        const contentType = response.headers.get('content-type') || 'application/octet-stream';
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const detectedAspectRatio = getAspectRatioFromBuffer(buffer);
+        const upload = await storage.uploadBuffer(buffer, 'images', contentType);
         const signedUrl = await storage.getSignedDownloadUrl(upload.key);
         const xaiUrl = preferPublicForXai ? upload.publicUrl : signedUrl;
-        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl };
+        return { publicUrl: upload.publicUrl, signedUrl, xaiUrl, aspectRatio: detectedAspectRatio };
       } catch {
-        return { publicUrl: url, signedUrl: url, xaiUrl: url };
+        return { publicUrl: url, signedUrl: url, xaiUrl: url, aspectRatio: undefined };
       }
     };
 
     // Handle image upload or URL
     let imageUrl: string | undefined;
     let imageUrlForXai: string | undefined;
+    let detectedAspectRatio: string | undefined;
     const referenceSignedUrls: string[] = [];
     const referencePublicUrls: string[] = [];
 
@@ -67,12 +111,14 @@ export async function POST(request: NextRequest) {
       const upload = await uploadFromFile(file);
       imageUrl = upload.publicUrl;
       imageUrlForXai = upload.xaiUrl;
+      detectedAspectRatio = upload.aspectRatio;
       referenceSignedUrls.push(upload.xaiUrl);
       referencePublicUrls.push(upload.publicUrl);
     } else if (providedImageUrl) {
       const upload = await uploadFromUrl(providedImageUrl);
       imageUrl = upload.publicUrl;
       imageUrlForXai = upload.xaiUrl;
+      detectedAspectRatio = upload.aspectRatio;
       referenceSignedUrls.push(upload.xaiUrl);
       referencePublicUrls.push(upload.publicUrl);
     }
@@ -118,38 +164,42 @@ export async function POST(request: NextRequest) {
       imageUrlForXai = imageUrlForXai || referenceSignedUrls[0];
     }
 
-    // Encode prompt for video
-    // When image is provided, use original prompt to preserve fidelity to the reference image
+    const hasReference = referenceSignedUrls.length > 0;
     const encoder = createPromptEncoder('video', { style: 'cinematic', quality: 'high' });
     const encodedPrompt = encoder.encode(prompt);
-    
-    // For img2video, strongly instruct identity/appearance consistency
-    const imageConsistencyPrefix = referenceSignedUrls.length > 0
-      ? 'Use the provided reference images as the first frame(s). Preserve the subject identity, face, hair, body proportions, clothing, and background. Only animate the motion described. '
-      : '';
 
-    // For img2video, use original prompt to preserve subject identity
-    const enhancedPrompt = {
-      ...encodedPrompt,
-      enhanced: referenceSignedUrls.length > 0 ? `${imageConsistencyPrefix}${prompt}` : encodedPrompt.enhanced,
-    };
+    const referencePromptPrefix = 'Use the provided reference image as the first frame. Do not change identity, colors, lighting, background, camera, or composition. Only animate the motion described. ';
+    const enhancedPrompt = hasReference
+      ? {
+          original: prompt,
+          enhanced: `${referencePromptPrefix}${prompt}`,
+          tags: [],
+          style: 'reference',
+          quality: 1,
+        }
+      : encodedPrompt;
 
     // Route to model
+    const effectiveAspectRatio = detectedAspectRatio || requestedAspectRatio || undefined;
+    if (detectedAspectRatio && requestedAspectRatio && detectedAspectRatio !== requestedAspectRatio) {
+      console.log(`[VIDEO] Overriding aspect ratio from ${requestedAspectRatio} to ${detectedAspectRatio} based on input image.`);
+    }
+
     const modelConfig = aiRouter.route({
       type: 'video',
-      resolution: aspectRatio || undefined,
+      resolution: effectiveAspectRatio,
       priority: 'quality',
       modelId: model || undefined,
     });
 
     // Add video-specific parameters
     const videoParams: Record<string, unknown> = {};
-    if (aspectRatio) videoParams.aspect_ratio = aspectRatio;
+    if (effectiveAspectRatio) videoParams.aspect_ratio = effectiveAspectRatio;
     if (quality) videoParams.resolution = quality;
     const durationValue = duration ? parseInt(duration) : 5;
     videoParams.duration = durationValue;
 
-    console.log(`[VIDEO] Parameters: aspectRatio=${aspectRatio}, quality=${quality}, duration=${durationValue}`);
+    console.log(`[VIDEO] Parameters: aspectRatio=${effectiveAspectRatio || 'auto'}, quality=${quality}, duration=${durationValue}`);
 
     if (modelConfig.provider === 'higgsfield' && referenceSignedUrls.length === 0) {
       return NextResponse.json(
@@ -181,7 +231,7 @@ export async function POST(request: NextRequest) {
         enhancedPrompt: enhancedPrompt.enhanced,
         modelUsed: modelConfig.model,
         provider: modelConfig.provider,
-        resolution: aspectRatio || undefined,
+        resolution: effectiveAspectRatio,
         duration: durationValue,
         inputImageUrl: imageUrl || referencePublicUrls[0] || undefined,
         costEstimate: aiRouter.estimateCost(modelConfig.model).toString(),
@@ -264,7 +314,7 @@ export async function POST(request: NextRequest) {
     ) {
       const fallbackModelConfig = aiRouter.route({
         type: 'video',
-        resolution: aspectRatio || undefined,
+        resolution: effectiveAspectRatio,
         priority: 'quality',
         modelId: 'grok-imagine-video',
       });
