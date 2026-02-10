@@ -88,7 +88,7 @@ export class XAIProvider extends BaseProvider {
   private async pollForVideoResult(
     requestId: string,
     apiKey: string,
-    maxAttempts: number = 60,
+    maxAttempts: number = 120,
     delayMs: number = 5000
   ): Promise<GenerationResult> {
     const pollUrl = `https://api.x.ai/v1/videos/${encodeURIComponent(requestId)}`;
@@ -116,15 +116,15 @@ export class XAIProvider extends BaseProvider {
 
         const data = await response.json();
         console.log(`[POLL] Response data:`, JSON.stringify(data, null, 2));
-        
-        // xAI returns video in data.video.url when complete (status 200)
-        // or { status: 'pending' } when still processing (status 202)
+
+        // xAI docs: status is 'pending', 'done', or 'expired'
+        // When 'done', video.url contains the result
         const videoUrl = data.video?.url;
         const status = data.status;
-        
+
         console.log(`[POLL] Status: ${status}, Video URL: ${videoUrl ? 'present' : 'missing'}`);
 
-        if (videoUrl) {
+        if (status === 'done' && videoUrl) {
           console.log(`[POLL] Video completed! URL: ${videoUrl}`);
           return {
             success: true,
@@ -133,13 +133,26 @@ export class XAIProvider extends BaseProvider {
               requestId,
               duration: data.video?.duration,
               model: data.model,
+              respect_moderation: data.video?.respect_moderation,
             },
+          };
+        } else if (status === 'done' && !videoUrl) {
+          console.error(`[POLL] Status is done but no video URL found:`, data);
+          return {
+            success: false,
+            error: 'Video generation completed but no video URL was returned.',
           };
         } else if (status === 'failed') {
           console.error(`[POLL] Video generation failed:`, data.error);
           return {
             success: false,
             error: `Video generation failed: ${data.error || 'Unknown error'}`,
+          };
+        } else if (status === 'expired') {
+          console.error(`[POLL] Video generation request expired`);
+          return {
+            success: false,
+            error: 'Video generation request expired. Please try again.',
           };
         } else {
           console.log(`[POLL] Still processing (status: '${status}'), continuing polling...`);

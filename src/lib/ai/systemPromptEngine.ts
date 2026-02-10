@@ -63,11 +63,37 @@ export class PromptEncoder {
 
   encode(rawPrompt: string): EnhancedPrompt {
     const cleanedPrompt = this.cleanPrompt(rawPrompt);
+
+    // For edit type, use minimal enhancement to preserve user intent
+    // Edit prompts should be direct instructions (e.g. "change shirt to red")
+    if (this.config.type === 'edit') {
+      return {
+        original: rawPrompt,
+        enhanced: cleanedPrompt,
+        tags: [],
+        style: this.config.style || 'photorealistic',
+        quality: this.getQualityScore(),
+      };
+    }
+
+    // For video type, use light enhancement only
+    // Heavy tags confuse video generation APIs
+    if (this.config.type === 'video') {
+      return {
+        original: rawPrompt,
+        enhanced: `${cleanedPrompt}, cinematic quality, smooth motion`,
+        tags: ['cinematic', 'smooth motion'],
+        style: this.config.style || 'cinematic',
+        quality: this.getQualityScore(),
+      };
+    }
+
+    // For image type, apply full enhancement pipeline
     const tags = this.generateTags();
     const styleModifier = this.getStyleModifier();
     const qualityModifier = this.getQualityModifier();
     const structuredPrompt = this.structurePrompt(cleanedPrompt, tags, styleModifier, qualityModifier);
-    
+
     return {
       original: rawPrompt,
       enhanced: structuredPrompt,
@@ -87,11 +113,11 @@ export class PromptEncoder {
 
   private generateTags(): string[] {
     const baseTags = [...CINEMATIC_TAGS];
-    
+
     if (this.config.style === 'photorealistic') {
       baseTags.push(...PHOTOREALISTIC_TAGS);
     }
-    
+
     // Remove duplicates and limit
     return [...new Set(baseTags)].slice(0, 8);
   }
@@ -116,21 +142,21 @@ export class PromptEncoder {
     qualityModifier: string
   ): string {
     const parts: string[] = [];
-    
+
     // Quality prefix for emphasis
     parts.push(qualityModifier);
-    
+
     // Main subject with style
     parts.push(`${cleanedPrompt}, ${styleModifier}`);
-    
+
     // Enhancing tags
     parts.push(tags.join(', '));
-    
+
     // Aspect ratio context if provided
     if (this.config.aspectRatio) {
       parts.push(`composition: ${this.config.aspectRatio}`);
     }
-    
+
     return parts.join('. ');
   }
 

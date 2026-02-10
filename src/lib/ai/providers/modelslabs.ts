@@ -55,8 +55,8 @@ export class ModelsLabsProvider extends BaseProvider {
         key: apiKey,
         prompt: prompt.enhanced,
         model_id: config.model,
-        samples: '1',
-        safety_checker: 'no',
+        samples: 1,
+        safety_checker: false,
       };
       
       if (isNanoBanana) {
@@ -68,15 +68,12 @@ export class ModelsLabsProvider extends BaseProvider {
         const height = config.parameters.height || 1024;
         payload.width = width;
         payload.height = height;
-        payload.negative_prompt = options?.negativePrompt || '';
+        payload.negative_prompt = (typeof options?.negativePrompt === 'string') ? options.negativePrompt : '';
         payload.num_inference_steps = config.parameters.num_inference_steps || 30;
         payload.guidance_scale = config.parameters.guidance_scale || 7.5;
         payload.scheduler = config.parameters.scheduler || 'UniPCMultistepScheduler';
         payload.enhance_prompt = 'yes';
       }
-      
-      // Merge any additional options
-      Object.assign(payload, options);
 
       console.log('Sending request to ModelsLabs:', config.endpoint);
       console.log('Payload:', JSON.stringify(payload, null, 2));
@@ -229,12 +226,12 @@ export class ModelsLabsProvider extends BaseProvider {
         init_image: imageUrl,
         prompt: prompt.enhanced,
         negative_prompt: '',
-        strength: config.parameters.strength || 0.75,
+        strength: config.parameters.strength || 0.35,
         num_inference_steps: config.parameters.num_inference_steps || 35,
         guidance_scale: config.parameters.guidance_scale || 8.0,
         model_id: config.model,
-        samples: '1',
-        safety_checker: 'no',
+        samples: 1,
+        safety_checker: false,
       };
 
       const response = await this.fetchWithTimeout(
@@ -256,6 +253,17 @@ export class ModelsLabsProvider extends BaseProvider {
 
       const data = await response.json();
 
+      // Check for API error response
+      if (data.status === 'error') {
+        throw new Error(`ModelsLabs edit error: ${data.messege || data.message || JSON.stringify(data)}`);
+      }
+
+      // Handle processing status - need to poll for result
+      if (data.status === 'processing' && data.fetch_result) {
+        console.log('ModelsLabs edit processing, polling for result:', data.fetch_result);
+        return this.pollForResult(data.fetch_result, apiKey, config.model);
+      }
+
       let outputUrl: string | undefined;
       
       if (data.image_url) {
@@ -267,7 +275,8 @@ export class ModelsLabsProvider extends BaseProvider {
       }
 
       if (!outputUrl) {
-        throw new Error('No image URL in response');
+        console.error('No image URL in edit response. Full response:', JSON.stringify(data));
+        throw new Error(`No image URL in edit response. Status: ${data.status}`);
       }
 
       return {
