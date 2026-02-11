@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { db, generations } from '@/lib/db';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '@/lib/auth';
@@ -6,6 +7,9 @@ import { createPromptEncoder } from '@/lib/ai/systemPromptEngine';
 import { aiRouter } from '@/lib/ai/router';
 import { generateVideo } from '@/lib/ai/providers';
 import { storage } from '@/lib/storage';
+
+// Extend Vercel function timeout to maximum (Pro plan = 300s)
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +38,6 @@ export async function POST(request: NextRequest) {
       const upload = await storage.uploadBuffer(buffer, 'images', file.type);
       imageUrl = upload.publicUrl;
     } else if (providedImageUrl) {
-      // If it's a data URI, upload to R2 first
       if (providedImageUrl.startsWith('data:')) {
         const match = providedImageUrl.match(/^data:(.+?);base64,(.+)$/);
         if (match) {
@@ -69,12 +72,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (quality) {
-      videoParams.resolution = quality; // '720p' or '480p'
+      videoParams.resolution = quality;
     }
 
     console.log(`[VIDEO] Generating — duration=${durationValue}s, aspect=${aspectRatio || 'auto'}, quality=${quality || '720p'}, hasImage=${!!imageUrl}`);
 
-    // Create generation record
+    // Create generation record in DB
     const [generation] = await db
       .insert(generations)
       .values({
@@ -92,54 +95,76 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    // Generate video via xAI provider
-    const result = await generateVideo(
-      modelConfig,
-      enhancedPrompt,
-      imageUrl,
-      videoParams
-    );
+    const generationId = generation.id;
+    console.log(`[VIDEO] Created generation ${generationId}, scheduling background processing...`);
 
-    console.log('[VIDEO] Result:', JSON.stringify(result, null, 2));
+    // Schedule background work using Next.js 15 after() API
+    // This continues running after the response is sent to the client,
+    // using Vercel's waitUntil primitive to keep the function alive.
+    after(async () => {
+      try {
+        console.log(`[VIDEO BG] Starting generation ${generationId}...`);
 
-    if (!result.success || !result.url) {
-      console.error('[VIDEO] Failed:', result.error);
-      await db
-        .update(generations)
-        .set({
-          status: 'failed',
-          error: result.error || 'Video generation failed',
-        })
-        .where(eq(generations.id, generation.id));
+        const result = await generateVideo(
+          modelConfig,
+          enhancedPrompt,
+          imageUrl,
+          videoParams
+        );
 
-      return NextResponse.json(
-        { success: false, error: result.error || 'Video generation failed' },
-        { status: 500 }
-      );
-    }
+        console.log(`[VIDEO BG] Generation ${generationId} result:`, JSON.stringify(result, null, 2));
 
-    // Upload video to R2 storage (xAI URLs are temporary)
-    console.log('[VIDEO] Uploading to R2...');
-    const upload = await storage.uploadFromUrl(result.url, 'videos');
-    console.log('[VIDEO] Upload complete:', upload.publicUrl);
+        if (!result.success || !result.url) {
+          console.error(`[VIDEO BG] Generation ${generationId} failed:`, result.error);
+          await db
+            .update(generations)
+            .set({
+              status: 'failed',
+              error: result.error || 'Video generation failed',
+            })
+            .where(eq(generations.id, generationId));
+          return;
+        }
 
-    // Update generation record
-    await db
-      .update(generations)
-      .set({
-        status: 'completed',
-        outputUrl: upload.publicUrl,
-        metadata: result.metadata,
-        completedAt: new Date(),
-      })
-      .where(eq(generations.id, generation.id));
+        // Upload video to R2 storage (xAI URLs are temporary)
+        console.log(`[VIDEO BG] Generation ${generationId}: uploading to R2...`);
+        const upload = await storage.uploadFromUrl(result.url, 'videos');
+        console.log(`[VIDEO BG] Generation ${generationId}: upload complete:`, upload.publicUrl);
 
+        // Update generation record as completed
+        await db
+          .update(generations)
+          .set({
+            status: 'completed',
+            outputUrl: upload.publicUrl,
+            metadata: result.metadata,
+            completedAt: new Date(),
+          })
+          .where(eq(generations.id, generationId));
+
+        console.log(`[VIDEO BG] ✅ Generation ${generationId} completed successfully`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[VIDEO BG] ❌ Generation ${generationId} error:`, errorMessage);
+
+        await db
+          .update(generations)
+          .set({
+            status: 'failed',
+            error: errorMessage,
+          })
+          .where(eq(generations.id, generationId))
+          .catch((dbErr) => console.error(`[VIDEO BG] Failed to update error status:`, dbErr));
+      }
+    });
+
+    // Return immediately — the video generation continues in the background
     return NextResponse.json({
       success: true,
       data: {
-        generationId: generation.id,
-        status: 'completed',
-        url: upload.publicUrl,
+        generationId,
+        status: 'processing',
+        message: 'Video generation started. Poll /api/generations/{id} for status.',
       },
     });
   } catch (error) {

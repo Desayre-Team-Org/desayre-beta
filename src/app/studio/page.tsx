@@ -29,6 +29,56 @@ export default function StudioPage() {
   const [videoModel, setVideoModel] = useState('grok-imagine-video');
   const [editStrength, setEditStrength] = useState(0.35);
 
+  /**
+   * Poll for video generation status until completed or failed.
+   * Max 120 attempts × 5s = 10 minutes timeout.
+   */
+  const pollForVideoStatus = useCallback(async (
+    generationId: string,
+    progressInterval: NodeJS.Timeout
+  ): Promise<{ url?: string; error?: string }> => {
+    const maxAttempts = 120;
+    const delayMs = 5000;
+    let baseProgress = 20;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+
+      // Gradually increase progress to show activity
+      baseProgress = Math.min(85, baseProgress + (65 / maxAttempts));
+      setProgress(baseProgress);
+
+      try {
+        const res = await fetch(`/api/generations/${generationId}`);
+        const data = await res.json();
+
+        if (!data.success) continue;
+
+        const status = data.data.status;
+
+        if (status === 'completed' && data.data.url) {
+          clearInterval(progressInterval);
+          setProgress(100);
+          return { url: data.data.url };
+        }
+
+        if (status === 'failed') {
+          clearInterval(progressInterval);
+          return { error: data.data.error || 'Video generation failed' };
+        }
+
+        // Still processing, continue polling
+        console.log(`[POLL] Attempt ${attempt}/${maxAttempts} — status: ${status}`);
+      } catch (err) {
+        console.warn(`[POLL] Network error on attempt ${attempt}:`, err);
+        // Continue polling on network errors
+      }
+    }
+
+    clearInterval(progressInterval);
+    return { error: 'Video generation timed out. Check your video history later — it may still complete.' };
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
 
@@ -107,14 +157,33 @@ export default function StudioPage() {
 
       console.log('Generation response:', data);
 
-      clearInterval(progressInterval);
-      setProgress(100);
-
       if (data.success) {
-        console.log('Setting result URL:', data.data.url);
-        setResult({ url: data.data.url });
-        setRefreshTrigger((t) => t + 1);
+        // Check if this is an async video generation (status: processing)
+        if (data.data.status === 'processing' && data.data.generationId) {
+          console.log(`[VIDEO] Async generation started: ${data.data.generationId}, polling...`);
+          setProgress(15);
+
+          // Poll for video completion
+          const pollResult = await pollForVideoStatus(data.data.generationId, progressInterval);
+
+          if (pollResult.url) {
+            console.log('Video ready:', pollResult.url);
+            setResult({ url: pollResult.url });
+            setRefreshTrigger((t) => t + 1);
+          } else {
+            setResult({ error: pollResult.error || 'Video generation failed' });
+          }
+        } else {
+          // Immediate result (image/edit)
+          clearInterval(progressInterval);
+          setProgress(100);
+          console.log('Setting result URL:', data.data.url);
+          setResult({ url: data.data.url });
+          setRefreshTrigger((t) => t + 1);
+        }
       } else {
+        clearInterval(progressInterval);
+        setProgress(0);
         setResult({ error: data.error || 'Generation failed' });
       }
     } catch (error) {
@@ -133,6 +202,7 @@ export default function StudioPage() {
     videoDuration,
     videoModel,
     editStrength,
+    pollForVideoStatus,
   ]);
 
   const tabs = [
