@@ -25,7 +25,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     id: 'nano-banana-pro',
     name: 'Nano Banana Pro',
     provider: 'modelslabs',
-    type: ['image'],
+    type: ['image', 'edit'],
     resolutions: ['1:1', '9:16', '2:3', '3:4', '4:5', '5:4', '4:3', '3:2', '16:9', '21:9'],
     maxPromptLength: 500,
     costPerGeneration: 0.002,
@@ -35,21 +35,6 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
       num_inference_steps: 30,
       guidance_scale: 7.5,
       scheduler: 'UniPCMultistepScheduler',
-    },
-  },
-  'grok-imagine-image-i2i': {
-    id: 'grok-imagine-image-i2i',
-    name: 'Grok Imagine Image Edit',
-    provider: 'modelslabs',
-    type: ['edit'],
-    resolutions: ['1:1', '9:16', '2:3', '3:4', '4:5', '5:4', '4:3', '3:2', '16:9', '21:9'],
-    maxPromptLength: 500,
-    costPerGeneration: 0.003,
-    averageTimeSeconds: 12,
-    supportsNegativePrompt: true,
-    parameters: {
-      num_inference_steps: 35,
-      guidance_scale: 8.0,
       strength: 0.35,
     },
   },
@@ -101,7 +86,7 @@ export class AIRouter {
       xai: process.env.XAI_API_KEY || '',
       higgsfield: this.getHiggsfieldKey(),
     };
-    
+
     console.log('AIRouter initialized:', {
       hasModelsLabsKey: !!this.apiKeys.modelslabs,
       modelsLabsKeyLength: this.apiKeys.modelslabs?.length,
@@ -175,19 +160,20 @@ export class AIRouter {
 
   private buildEndpoint(model: ModelDefinition, type: GenerationType): string {
     const baseUrl = PROVIDER_ENDPOINTS[model.provider];
-    
+
     // ModelsLabs uses different endpoints than OpenAI format
     if (model.provider === 'modelslabs') {
       switch (type) {
         case 'image':
           return `${baseUrl}/images/text-to-image`;
         case 'edit':
-          return `${baseUrl}/images/image-to-image`;
+          // Realtime img2img uses v6 endpoint (different from v7 text2img)
+          return 'https://modelslab.com/api/v6/realtime/img2img';
         default:
           throw new Error(`ModelsLabs does not support type: ${type}`);
       }
     }
-    
+
     // xAI endpoints
     if (model.provider === 'xai') {
       if (type === 'video') {
@@ -202,7 +188,7 @@ export class AIRouter {
     if (model.provider === 'higgsfield') {
       return baseUrl;
     }
-    
+
     // Default fallback
     switch (type) {
       case 'image':
@@ -218,14 +204,14 @@ export class AIRouter {
 
   private buildHeaders(provider: ModelProvider): Record<string, string> {
     const apiKey = this.apiKeys[provider];
-    
+
     if (!apiKey) {
       const envHint =
         provider === 'modelslabs'
           ? 'MODELS_LABS_API_KEY'
           : provider === 'xai'
-          ? 'XAI_API_KEY'
-          : 'HIGGSFIELD_API_KEY or HIGGSFIELD_API_KEY_ID/HIGGSFIELD_API_KEY_SECRET';
+            ? 'XAI_API_KEY'
+            : 'HIGGSFIELD_API_KEY or HIGGSFIELD_API_KEY_ID/HIGGSFIELD_API_KEY_SECRET';
       throw new Error(
         `API key not configured for provider: ${provider}. Please set ${envHint} environment variable(s).`
       );

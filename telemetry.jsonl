@@ -1,0 +1,15 @@
+{"ts":"2026-02-11T02:23:50.982Z","level":"info","source":"client","event":"route_change","payload":{"path":"/login","sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01"}}
+{"ts":"2026-02-11T02:23:50.954Z","level":"info","source":"client","event":"route_change","payload":{"path":"/login","sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33"}}
+{"level":"info","event":"console_log","payload":{"args":["[Fast Refresh] rebuilding"],"sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33"},"ts":"2026-02-11T02:23:51.335Z","source":"client"}
+{"level":"info","event":"http_request","payload":{"url":"/_next/static/webpack/a2ec7cc7ca3e76d2.webpack.hot-update.json","method":"GET","status":200,"durationMs":252,"sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33"},"ts":"2026-02-11T02:23:51.826Z","source":"client"}
+{"level":"info","event":"telemetry_started","payload":{"sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33","path":"/login"},"ts":"2026-02-11T02:23:50.954Z","source":"client"}
+{"level":"info","event":"http_request","payload":{"url":"/_next/static/webpack/84c58f191825249f.webpack.hot-update.json","method":"GET","status":200,"durationMs":8,"sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33"},"ts":"2026-02-11T02:23:51.856Z","source":"client"}
+{"level":"info","event":"console_log","payload":{"args":["[Fast Refresh] done in 513ms"],"sessionId":"69679e5a-a7b2-4df7-89ec-e6ca2f144c33"},"ts":"2026-02-11T02:23:51.848Z","source":"client"}
+{"level":"info","event":"telemetry_started","payload":{"sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01","path":"/login"},"ts":"2026-02-11T02:23:50.981Z","source":"client"}
+{"level":"info","event":"console_log","payload":{"args":["[Fast Refresh] rebuilding"],"sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01"},"ts":"2026-02-11T02:23:51.336Z","source":"client"}
+{"level":"info","event":"http_request","payload":{"url":"/_next/static/webpack/a2ec7cc7ca3e76d2.webpack.hot-update.json","method":"GET","status":200,"durationMs":251,"sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01"},"ts":"2026-02-11T02:23:51.843Z","source":"client"}
+{"level":"info","event":"console_log","payload":{"args":["[Fast Refresh] done in 547ms"],"sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01"},"ts":"2026-02-11T02:23:51.883Z","source":"client"}
+{"level":"info","event":"http_request","payload":{"url":"/_next/static/webpack/84c58f191825249f.webpack.hot-update.json","method":"GET","status":200,"durationMs":11,"sessionId":"54adbfc9-72fe-44e5-b27b-a0902e17ab01"},"ts":"2026-02-11T02:23:51.895Z","source":"client"}
+{"ts":"2026-02-11T04:14:11.770Z","level":"info","source":"client","event":"route_change","payload":{"path":"/login","sessionId":"6a723cd2-8383-461c-af81-1b3dc4e47e43"}}
+{"ts":"2026-02-11T04:14:11.771Z","level":"info","source":"client","event":"route_change","payload":{"path":"/login","sessionId":"1a8764a7-536c-4519-b127-1808b90fff21"}}
+{"level":"info","event":"telemetry_started","payload":{"sessionId":"6a723cd2-8383-461c-af81-1b3dc4e47e43","path":"/login"},"ts":"2026-02-11T04:14:11.770Z","source":"client"}
