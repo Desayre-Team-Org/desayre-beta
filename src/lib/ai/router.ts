@@ -43,30 +43,14 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     name: 'Grok Imagine Video',
     provider: 'xai',
     type: ['video'],
-    resolutions: ['576x320', '768x432', '1024x576'],
-    maxPromptLength: 400,
-    costPerGeneration: 0.01,
-    averageTimeSeconds: 45,
-    supportsNegativePrompt: false,
-    parameters: {
-      duration: 5,
-      fps: 24,
-      motion_bucket_id: 127,
-    },
-  },
-  'higgsfield-soul-video': {
-    id: 'higgsfield-soul-video',
-    name: 'Higgsfield Soul Video',
-    provider: 'higgsfield',
-    type: ['video'],
-    resolutions: ['1:1', '9:16', '16:9', '4:3', '3:4', '3:2', '2:3'],
+    resolutions: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3'],
     maxPromptLength: 500,
-    costPerGeneration: 0,
+    costPerGeneration: 0.01,
     averageTimeSeconds: 60,
     supportsNegativePrompt: false,
     parameters: {
-      application: process.env.HIGGSFIELD_VIDEO_APP || '',
-      referenceImageParam: process.env.HIGGSFIELD_REFERENCE_IMAGE_PARAM || 'reference_image_urls',
+      duration: 5,
+      resolution: '720p',
     },
   },
 };
@@ -74,7 +58,6 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
 const PROVIDER_ENDPOINTS: Record<ModelProvider, string> = {
   modelslabs: 'https://modelslab.com/api/v7',
   xai: 'https://api.x.ai/v1',
-  higgsfield: 'https://platform.higgsfield.ai',
 };
 
 export class AIRouter {
@@ -84,7 +67,6 @@ export class AIRouter {
     this.apiKeys = {
       modelslabs: process.env.MODELS_LABS_API_KEY || '',
       xai: process.env.XAI_API_KEY || '',
-      higgsfield: this.getHiggsfieldKey(),
     };
 
     console.log('AIRouter initialized:', {
@@ -184,10 +166,7 @@ export class AIRouter {
       return baseUrl;
     }
 
-    // Higgsfield uses application paths appended to base URL
-    if (model.provider === 'higgsfield') {
-      return baseUrl;
-    }
+
 
     // Default fallback
     switch (type) {
@@ -206,48 +185,19 @@ export class AIRouter {
     const apiKey = this.apiKeys[provider];
 
     if (!apiKey) {
-      const envHint =
-        provider === 'modelslabs'
-          ? 'MODELS_LABS_API_KEY'
-          : provider === 'xai'
-            ? 'XAI_API_KEY'
-            : 'HIGGSFIELD_API_KEY or HIGGSFIELD_API_KEY_ID/HIGGSFIELD_API_KEY_SECRET';
+      const envHint = provider === 'modelslabs' ? 'MODELS_LABS_API_KEY' : 'XAI_API_KEY';
       throw new Error(
-        `API key not configured for provider: ${provider}. Please set ${envHint} environment variable(s).`
+        `API key not configured for provider: ${provider}. Please set ${envHint} environment variable.`
       );
     }
 
-    switch (provider) {
-      case 'modelslabs':
-        return {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        };
-      case 'xai':
-        return {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        };
-      case 'higgsfield':
-        return {
-          'Authorization': `Key ${apiKey}`,
-          'Content-Type': 'application/json',
-        };
-      default:
-        throw new Error(`Unknown provider: ${provider}`);
-    }
+    return {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    };
   }
 
-  private getHiggsfieldKey(): string {
-    const directKey = process.env.HIGGSFIELD_API_KEY || process.env.HF_KEY;
-    if (directKey) return directKey;
 
-    const keyId = process.env.HIGGSFIELD_API_KEY_ID || process.env.HF_API_KEY;
-    const keySecret = process.env.HIGGSFIELD_API_KEY_SECRET || process.env.HF_API_SECRET;
-    if (keyId && keySecret) return `${keyId}:${keySecret}`;
-
-    return '';
-  }
 
   private buildParameters(
     model: ModelDefinition,

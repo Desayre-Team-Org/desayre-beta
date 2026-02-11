@@ -17,7 +17,6 @@ const modelOptions: Record<string, { value: string; label: string }[]> = {
   ],
   video: [
     { value: 'grok-imagine-video', label: 'Grok Imagine Video' },
-    { value: 'higgsfield-soul-video', label: 'Higgsfield Soul Video (Identity)' },
   ],
 };
 

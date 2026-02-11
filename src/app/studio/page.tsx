@@ -5,7 +5,6 @@ import { MainLayout } from '@/components/layout/main-layout';
 import { PromptInput } from '@/components/studio/prompt-input';
 import { ModelSelector, ResolutionSelector, VideoQualitySelector } from '@/components/studio/model-selector';
 import { ImageUpload } from '@/components/studio/image-upload';
-import { ReferenceImagesUpload, ReferenceImageItem } from '@/components/studio/reference-images-upload';
 import { PreviewPanel } from '@/components/studio/preview-panel';
 import { HistorySidebar } from '@/components/studio/history-sidebar';
 import { Button } from '@/components/ui/button';
@@ -28,7 +27,6 @@ export default function StudioPage() {
   const [videoQuality, setVideoQuality] = useState('720p');
   const [videoDuration, setVideoDuration] = useState(5);
   const [videoModel, setVideoModel] = useState('grok-imagine-video');
-  const [referenceImages, setReferenceImages] = useState<ReferenceImageItem[]>([]);
   const [editStrength, setEditStrength] = useState(0.35);
 
   const handleGenerate = useCallback(async () => {
@@ -48,17 +46,17 @@ export default function StudioPage() {
 
     try {
       const endpoint = `/api/generate/${activeTab}`;
-      
+
       let body: BodyInit;
       let headers: Record<string, string> = {};
-      
+
       // For edit mode, use FormData to support file upload
       if (activeTab === 'edit') {
         const formData = new FormData();
         formData.append('prompt', prompt);
         formData.append('resolution', resolution);
         formData.append('strength', editStrength.toString());
-        
+
         if (inputImageFile) {
           formData.append('image', inputImageFile);
         } else if (inputImageUrl) {
@@ -69,7 +67,7 @@ export default function StudioPage() {
           clearInterval(progressInterval);
           return;
         }
-        
+
         body = formData;
         // Don't set Content-Type for FormData, browser will set it with boundary
       } else if (activeTab === 'video') {
@@ -80,17 +78,13 @@ export default function StudioPage() {
         formData.append('quality', videoQuality);
         formData.append('duration', videoDuration.toString());
         formData.append('model', videoModel);
-        
+
         if (inputImageFile) {
           formData.append('image', inputImageFile);
         } else if (inputImageUrl) {
           formData.append('imageUrl', inputImageUrl);
         }
 
-        if (referenceImages.length > 0) {
-          referenceImages.forEach((item) => formData.append('referenceImages', item.file));
-        }
-        
         body = formData;
       } else {
         // For image, use JSON
@@ -98,7 +92,7 @@ export default function StudioPage() {
           prompt,
           resolution,
         };
-        
+
         body = JSON.stringify(jsonBody);
         headers['Content-Type'] = 'application/json';
       }
@@ -110,7 +104,7 @@ export default function StudioPage() {
       });
 
       const data = await response.json();
-      
+
       console.log('Generation response:', data);
 
       clearInterval(progressInterval);
@@ -138,7 +132,6 @@ export default function StudioPage() {
     videoQuality,
     videoDuration,
     videoModel,
-    referenceImages,
     editStrength,
   ]);
 
@@ -188,8 +181,8 @@ export default function StudioPage() {
               activeTab === 'image'
                 ? 'Describe the image you want to generate...'
                 : activeTab === 'edit'
-                ? 'Describe how you want to edit the image...'
-                : 'Describe the video motion you want...'
+                  ? 'Describe how you want to edit the image...'
+                  : 'Describe the video motion you want...'
             }
           />
 
@@ -296,21 +289,7 @@ export default function StudioPage() {
                         Upload an image to generate video from it, or leave empty for text-to-video
                       </p>
                     </div>
-                    {videoModel === 'higgsfield-soul-video' && (
-                      <div className="sm:col-span-2">
-                        <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-                          Reference Images (Soul Mode)
-                        </label>
-                        <ReferenceImagesUpload
-                          items={referenceImages}
-                          onChange={setReferenceImages}
-                          max={5}
-                        />
-                        <p className="mt-1.5 text-xs text-text-secondary">
-                          Use 1–5 reference images to preserve identity. The input image above is also included if provided.
-                        </p>
-                      </div>
-                    )}
+
                   </>
                 )}
               </div>
