@@ -51,12 +51,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Resolve the image URL — upload file or base64 to R2 for a public URL
     let imageUrl = providedImageUrl;
 
     if (file) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const upload = await storage.uploadBuffer(buffer, 'images', file.type);
       imageUrl = upload.publicUrl;
+    } else if (imageUrl && imageUrl.startsWith('data:')) {
+      // Handle base64 data URI — upload to R2 to get a public URL
+      // This avoids huge JSON payloads and ensures xAI API compatibility
+      const match = imageUrl.match(/^data:(.+?);base64,(.+)$/);
+      if (match) {
+        const buffer = Buffer.from(match[2], 'base64');
+        const upload = await storage.uploadBuffer(buffer, 'images', match[1]);
+        imageUrl = upload.publicUrl;
+      }
     }
 
     if (!imageUrl) {
@@ -66,14 +76,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Enhance prompt
     const encoder = createPromptEncoder('edit', { style: 'photorealistic', quality: 'high' });
     const enhancedPrompt = encoder.encode(prompt);
 
+    // Route to the best model for edit (now routes to xAI grok-imagine-image)
     const modelConfig = aiRouter.route({
       type: 'edit',
       resolution: resolution || undefined,
       priority: 'quality',
     });
+
+    // Pass aspect ratio for xAI provider
+    if (resolution && resolution.includes(':')) {
+      modelConfig.parameters = {
+        ...modelConfig.parameters,
+        aspect_ratio: resolution,
+      };
+    }
+
+    // Pass strength if provided (for ModelsLabs fallback)
     if (strength !== null) {
       const clamped = Math.max(0, Math.min(1, strength));
       modelConfig.parameters = {
@@ -82,6 +104,10 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    console.log(`[EDIT] Routing to provider: ${modelConfig.provider}, model: ${modelConfig.model}`);
+    console.log(`[EDIT] Image URL: ${imageUrl.substring(0, 80)}...`);
+
+    // Create generation record
     const [generation] = await db
       .insert(generations)
       .values({
@@ -98,6 +124,7 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
+    // Call the AI provider
     const result = await editImage(modelConfig, enhancedPrompt, imageUrl, instructions || undefined);
 
     if (!result.success || !result.url) {
@@ -115,6 +142,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Upload the result to R2 for permanent storage
     const upload = await storage.uploadFromUrl(result.url, 'images');
 
     await db

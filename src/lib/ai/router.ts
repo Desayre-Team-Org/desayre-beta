@@ -25,7 +25,7 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
     id: 'nano-banana-pro',
     name: 'Nano Banana Pro',
     provider: 'modelslabs',
-    type: ['image', 'edit'],
+    type: ['image'],
     resolutions: ['1:1', '9:16', '2:3', '3:4', '4:5', '5:4', '4:3', '3:2', '16:9', '21:9'],
     maxPromptLength: 500,
     costPerGeneration: 0.002,
@@ -37,6 +37,18 @@ const MODEL_REGISTRY: Record<string, ModelDefinition> = {
       scheduler: 'UniPCMultistepScheduler',
       strength: 0.35,
     },
+  },
+  'grok-imagine-image': {
+    id: 'grok-imagine-image',
+    name: 'Grok Imagine Image',
+    provider: 'xai',
+    type: ['edit'],
+    resolutions: ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '2:1', '1:2'],
+    maxPromptLength: 500,
+    costPerGeneration: 0.005,
+    averageTimeSeconds: 15,
+    supportsNegativePrompt: false,
+    parameters: {},
   },
   'grok-imagine-video': {
     id: 'grok-imagine-video',
@@ -161,6 +173,11 @@ export class AIRouter {
       if (type === 'video') {
         const endpoint = `${baseUrl}/videos/generations`;
         console.log('Building xAI video endpoint:', endpoint);
+        return endpoint;
+      }
+      if (type === 'image' || type === 'edit') {
+        const endpoint = `${baseUrl}/images/generations`;
+        console.log('Building xAI image endpoint:', endpoint);
         return endpoint;
       }
       return baseUrl;

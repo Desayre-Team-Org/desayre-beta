@@ -2,24 +2,25 @@ import { BaseProvider, GenerationResult } from './base';
 import { ModelConfig, EnhancedPrompt } from '@/types';
 
 /**
- * xAI Grok Imagine Video Provider
+ * xAI Grok Imagine Provider
  * 
- * Based on official docs: https://docs.x.ai/developers/model-capabilities/video/generation
+ * Image Generation & Editing:
+ *   Docs: https://docs.x.ai/docs/guides/image-generation
+ *   Model: grok-imagine-image
+ *   Endpoint: POST https://api.x.ai/v1/images/generations
+ *   - Text-to-Image: { model, prompt }
+ *   - Image Editing:  { model, prompt, image_url }
+ *   - image_url accepts public URL or data:image/...;base64,...
+ *   - Response is synchronous: { data: [{ url }] }
+ *   - Aspect ratios: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3, 2:1, 1:2
  * 
- * Capabilities:
- * - Text-to-Video: Generate video from text prompt
- * - Image-to-Video: Animate a still image with a prompt
- * - Video Editing: Edit existing video with a prompt (via video_url)
- * 
- * Configuration:
- * - Duration: 1-15 seconds (not supported for video editing)
- * - Aspect Ratio: 1:1, 16:9, 9:16, 4:3, 3:4, 3:2, 2:3
- * - Resolution: 720p, 480p (not supported for video editing)
- * 
- * Flow:
- * 1. POST https://api.x.ai/v1/videos/generations → { request_id }
- * 2. GET  https://api.x.ai/v1/videos/{request_id} → { status, video }
- *    Status: 'pending' | 'done' | 'expired'
+ * Video Generation:
+ *   Docs: https://docs.x.ai/developers/model-capabilities/video/generation
+ *   Model: grok-imagine-video
+ *   Flow:
+ *   1. POST https://api.x.ai/v1/videos/generations → { request_id }
+ *   2. GET  https://api.x.ai/v1/videos/{request_id} → { status, video }
+ *      Status: 'pending' | 'done' | 'expired'
  */
 export class XAIProvider extends BaseProvider {
   readonly name = 'xAI';
@@ -27,21 +28,160 @@ export class XAIProvider extends BaseProvider {
 
   private readonly BASE_URL = 'https://api.x.ai/v1';
 
+  /**
+   * Generate an image using xAI Grok Imagine Image.
+   * POST https://api.x.ai/v1/images/generations
+   */
   async generate(
     config: ModelConfig,
     prompt: EnhancedPrompt,
     options?: Record<string, unknown>
   ): Promise<GenerationResult> {
-    throw new Error('Image generation not supported by xAI provider. Use ModelsLabs for images.');
+    try {
+      const apiKey = this.getApiKey(config.headers);
+
+      const payload: Record<string, unknown> = {
+        model: 'grok-imagine-image',
+        prompt: prompt.enhanced,
+        n: 1,
+      };
+
+      if (options?.aspect_ratio) {
+        payload.aspect_ratio = options.aspect_ratio;
+      }
+
+      console.log('[XAI IMAGE] Generating image...');
+      console.log('[XAI IMAGE] Payload:', JSON.stringify(payload, null, 2));
+
+      const response = await this.fetchWithTimeout(
+        `${this.BASE_URL}/images/generations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(payload),
+        },
+        60000
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[XAI IMAGE] API error:', response.status, errorText);
+        throw new Error(`xAI Image API error ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const imageUrl = data?.data?.[0]?.url;
+
+      if (!imageUrl) {
+        console.error('[XAI IMAGE] No URL in response:', JSON.stringify(data));
+        throw new Error('No image URL returned from xAI API');
+      }
+
+      console.log('[XAI IMAGE] ✅ Image generated successfully');
+      return {
+        success: true,
+        url: imageUrl,
+        metadata: {
+          model: data?.data?.[0]?.model || 'grok-imagine-image',
+          respect_moderation: data?.data?.[0]?.respect_moderation,
+        },
+      };
+    } catch (error) {
+      return this.handleError(error);
+    }
   }
 
+  /**
+   * Edit an existing image using xAI Grok Imagine Image.
+   * Uses the SAME endpoint as generation, but with image_url parameter.
+   * POST https://api.x.ai/v1/images/generations
+   * 
+   * Per xAI docs:
+   * - image_url: public URL or base64 data URI
+   * - prompt: describes the desired edit
+   * - Does NOT support multipart/form-data — JSON only
+   */
   async edit(
     config: ModelConfig,
     prompt: EnhancedPrompt,
     imageUrl: string,
     instructions?: string
   ): Promise<GenerationResult> {
-    throw new Error('Image editing not supported by xAI provider. Use ModelsLabs for image editing.');
+    try {
+      const apiKey = this.getApiKey(config.headers);
+
+      // Combine prompt with instructions if provided
+      const editPrompt = instructions
+        ? `${prompt.enhanced}. Additional instructions: ${instructions}`
+        : prompt.enhanced;
+
+      const payload: Record<string, unknown> = {
+        model: 'grok-imagine-image',
+        prompt: editPrompt,
+        image_url: imageUrl,
+        n: 1,
+      };
+
+      // Add aspect ratio if available from config parameters
+      if (config.parameters?.aspect_ratio) {
+        payload.aspect_ratio = config.parameters.aspect_ratio;
+      }
+
+      console.log('[XAI EDIT] Editing image...');
+      console.log('[XAI EDIT] image_url:', imageUrl.substring(0, 80) + '...');
+      console.log('[XAI EDIT] Payload (without image):', JSON.stringify({ ...payload, image_url: '[redacted]' }, null, 2));
+
+      const response = await this.fetchWithTimeout(
+        `${this.BASE_URL}/images/generations`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(payload),
+        },
+        120000 // 2 min timeout for edits (can be slower)
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[XAI EDIT] API error:', response.status, errorText);
+        throw new Error(`xAI Edit API error ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const resultUrl = data?.data?.[0]?.url;
+
+      if (!resultUrl) {
+        // Check moderation
+        if (data?.data?.[0]?.respect_moderation === false) {
+          console.error('[XAI EDIT] Blocked by moderation');
+          return {
+            success: false,
+            error: 'Image edit was blocked by content moderation. Try a different prompt.',
+          };
+        }
+        console.error('[XAI EDIT] No URL in response:', JSON.stringify(data));
+        throw new Error('No image URL returned from xAI edit API');
+      }
+
+      console.log('[XAI EDIT] ✅ Edit completed successfully');
+      return {
+        success: true,
+        url: resultUrl,
+        metadata: {
+          model: data?.data?.[0]?.model || 'grok-imagine-image',
+          respect_moderation: data?.data?.[0]?.respect_moderation,
+          editMode: true,
+        },
+      };
+    } catch (error) {
+      return this.handleError(error);
+    }
   }
 
   async generateVideo(
